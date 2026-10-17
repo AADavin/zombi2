@@ -813,7 +813,7 @@ def test_the_genealogy_and_the_rearrangements_are_two_tables(tmp_path):
     lines = (tmp_path / "genome_events.tsv").read_text(encoding="utf-8").splitlines()
     header = lines[0].split("\t")
     assert header == ["time", "kind", "family", "parents", "children",
-                      "chromosome", "start", "length", "dest_chromosome", "dest_position"]
+                      "chromosome", "start", "length", "dest_chromosome", "dest_position", "event"]
     # keyed by name, not position, so adding a column cannot silently shift what this asserts on
     at = {c: i for i, c in enumerate(header)}
     rows = [ln.split("\t") for ln in lines[1:]]

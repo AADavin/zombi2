@@ -26,7 +26,7 @@ _RUN = dict(initial_families=200, duplication=0.1, transfer=0.4, loss=0.4, inver
             transposition=0.1, translocation=0.1, fission=0.05, fusion=0.05, chromosomes=2,
             origination=0.3, duplication_extent=3, loss_extent=2,
             families=[family("A"), family("B"), family("C")],
-            groups=[group("operon1", ["A", "B", "C"])])
+            groups=[group("operon1", ["A", "B", "C"], fates="group")])
 
 
 def _units_on(result):
@@ -59,6 +59,7 @@ def test_the_group_is_laid_out_whole_and_in_order(tree):
     where = seq.index(ids[0])
     assert seq[where:where + 3] == ids
     assert r.groups == {"operon1": ("A", "B", "C")}
+    assert group("x", ["A", "B"]).fates == "family"      # the default (#471)
 
 
 def test_every_event_touching_a_member_takes_all_three(tree):
@@ -110,7 +111,8 @@ def test_groups_tsv_names_every_copy_by_group_unit_family_and_gene(tree, tmp_pat
     r.write(tmp_path)
     lines = (tmp_path / "groups.tsv").read_text().splitlines()
     assert lines[0] == "group\tunit\tfamily\tgene"
-    assert [ln.split("\t")[:3] for ln in lines[1:4]] == [["operon1", "0", n] for n in "ABC"]
+    assert [ln.split("\t")[:3] for ln in lines[1:4]] == \
+        [["operon1", "0", str(r.family_names[n])] for n in "ABC"]      # ids, as every table
     assert len(lines) - 1 == len(r.grouped_genes)
     # a streamed run writes the same table
     simulate_genomes_ordered(tree, seed=1, stream_to=tmp_path / "stream", **_RUN)
@@ -186,3 +188,127 @@ def test_a_run_without_groups_is_the_run_it_was(tree):
 
 #: taken on main before #468, by the loop above
 _PLAIN_DIGEST = "e6898c5426235a5bdf1d64e2ca8298b1769aea4db7444525e3b8787d6ca4b6a7"
+
+
+# --- the three dials of #471 --------------------------------------------------------------------
+
+#: the benchmark run of #471: a pack that travels six times in ten, not laid out together, a hub
+#: and a decoy whose transfers prefer genomes that carry A but never travel with it
+def _bench(_tree=None, **more):
+    from zombi2.params import Recipients
+    # its own tree: eighty tips, no extinction, no stem, so the pack is transferred often enough to count
+    from zombi2.tree import with_stem
+    tree = with_stem(simulate_species_tree(birth=1.0, death=0.0, n_extant=80, seed=1).complete_tree, 0.0)
+    return simulate_genomes_ordered(
+        tree, initial_families=300, seed=11, joint=True, duplication=0.1, transfer=0.4, loss=0.4,
+        inversion=0.1, transposition=0.1,
+        families=[family("A"), family("B"), family("C"), family("H", transfer=40.0),
+                  family("D", transfer_to=Recipients().weighted_by("genomes:A",
+                                                                    {"present": 20.0, "absent": 1.0}))],
+        groups=[group("pack", ["A", "B", "C"], together=0.6, adjacent=False)], **more)
+
+
+def _shared(path, names):
+    """The transfer events of a written run, from ``genome_events.tsv`` alone: ``{event id: the
+    families it carried, by name}``, which is what the ``event`` column is for."""
+    lines = path.read_text().splitlines()
+    header = lines[0].split("\t")
+    at = {c: i for i, c in enumerate(header)}
+    by_name = {str(fid): name for name, fid in names.items()}
+    out: dict = {}
+    for ln in lines[1:]:
+        c = ln.split("\t")
+        if c[at["kind"]].startswith("transfer"):
+            out.setdefault(c[at["event"]], set()).add(by_name.get(c[at["family"]], c[at["family"]]))
+    return out
+
+
+def test_the_event_column_groups_the_rows_of_one_event(tree, tmp_path):
+    r = _bench(tree)
+    r.write(tmp_path)
+    ev = (tmp_path / "genome_events.tsv").read_text().splitlines()
+    header = ev[0].split("\t")
+    assert header[-1] == "event"
+    at = {c: i for i, c in enumerate(header)}
+    rows = [ln.split("\t") for ln in ev[1:]]
+    by_id: dict = {}
+    for c in rows:
+        by_id.setdefault(c[at["event"]], []).append(c)
+    # the rows of one id share a time and a kind, and ids rise down the file
+    for own in by_id.values():
+        assert len({c[at["time"]] for c in own}) == 1
+        assert len({c[at["kind"]] for c in own}) == 1
+    assert [int(i) for i in by_id] == sorted(int(i) for i in by_id)
+    # as many transfer rows as transfer events in Python, and the name map is in the summary
+    transfers = sum(len(own) for own in by_id.values() if own[0][at["kind"]].startswith("transfer"))
+    assert transfers == sum(1 for e in r.events if e.kind.startswith("transfer"))
+    assert r.summary()["families"]["names"] == {n: r.family_names[n] for n in "ABCDH"}
+
+
+def test_together_is_the_share_of_a_member_s_transfers_that_carry_the_pack(tree, tmp_path):
+    r = _bench(tree)
+    r.write(tmp_path)
+    rows = _shared(tmp_path / "genome_events.tsv", r.family_names)
+    pack = {"A", "B", "C"}
+    touching = [f for f in rows.values() if pack & f]
+    # the pack travelled: every member the donor still held went along, so two of three where the
+    # third had been lost on that branch
+    shared = [f for f in touching if len(f & pack) > 1]
+    assert len(touching) >= 40
+    assert 0.4 <= len(shared) / len(touching) <= 0.8       # 0.6, give or take the draw
+    assert any(len(f & pack) == 1 for f in touching)        # and sometimes one member went alone
+    # the decoy co-occurs with A and never shares an event with it
+    assert not any("D" in f and "A" in f for f in touching)
+    assert all(len(f) == 1 for f in rows.values() if "D" in f)
+
+
+def test_a_group_at_together_zero_and_not_adjacent_is_no_group_at_all(tree):
+    """The null of the benchmark: the same seed with the group declared and with the families
+    merely declared gives the same run, event for event."""
+    base = dict(initial_families=120, seed=5, duplication=0.2, transfer=0.4, loss=0.3, inversion=0.1,
+                transfer_extent=2, families=[family("A"), family("B"), family("C")])
+    plain = simulate_genomes_ordered(tree, **base)
+    null = simulate_genomes_ordered(tree, groups=[group("p", ["A", "B", "C"], together=0.0,
+                                                        adjacent=False)], **base)
+    assert [(e.time, e.kind, e.family) for e in plain.edges] == \
+        [(e.time, e.kind, e.family) for e in null.edges]
+    assert {n: plain.gene_order(n) for n in plain.node_genomes} == \
+        {n: null.gene_order(n) for n in null.node_genomes}
+
+
+def test_fates_family_lets_members_drift_apart_and_fates_group_does_not(tree):
+    base = dict(initial_families=150, seed=3, duplication=0.3, loss=0.5,
+                families=[family("A"), family("B"), family("C")])
+    drift = simulate_genomes_ordered(tree, groups=[group("op", ["A", "B", "C"])], **base)
+    held = simulate_genomes_ordered(tree, groups=[group("op", ["A", "B", "C"], fates="group")], **base)
+    ids = {drift.family_names[n] for n in "ABC"}
+
+    def partial_losses(r):
+        by = {}
+        for e in r.edges:
+            if e.kind == "loss" and e.family in ids:
+                by.setdefault((e.time, e.lineage), set()).add(e.family)
+        return sum(1 for fams in by.values() if fams != ids)
+    assert partial_losses(drift) > 0
+    assert partial_losses(held) == 0
+    # a duplicated member: the continuation stays in the unit, the tandem copy is not a member
+    unit_of = {gene: unit for _g, unit, _f, gene in drift.grouped_genes}
+    dup = [e.copy for e in drift.edges if e.kind == "duplication" and e.family in ids
+           and e.parent in unit_of]              # per parent: the continuation, then the copy
+    assert dup
+    assert all(c in unit_of for c in dup[0::2])
+    assert not any(c in unit_of for c in dup[1::2])
+
+
+def test_the_streamed_benchmark_writes_the_same_tables(tree, tmp_path):
+    _bench(tree).write(tmp_path / "mem")
+    _bench(tree, stream_to=tmp_path / "stream")
+    for f in ("genome_events.tsv", "groups.tsv", "genome_summary.json"):
+        assert (tmp_path / "mem" / f).read_text() == (tmp_path / "stream" / f).read_text()
+
+
+def test_the_dials_are_checked():
+    with pytest.raises(ValueError, match="probability"):
+        group("p", ["A", "B"], together=1.5)
+    with pytest.raises(ValueError, match="fates"):
+        group("p", ["A", "B"], fates="unit")

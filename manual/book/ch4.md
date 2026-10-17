@@ -89,7 +89,39 @@ Every member is a declared family, a family belongs to at most one group, and a 
 - **No breakpoint falls inside it.** A rearrangement's run never ends between two of its genes, so an inversion flips the group whole and a transposition moves it whole. Nothing is inserted between its genes either, and a fission cuts beside it, never through it.
 - **The rates stay per copy.** A group of three genes is hit three times as often as one gene, and each hit moves the three.
 
-A copy of a group in a genome is a **unit**. `groups.tsv` lists every gene copy that was ever minted into a unit, with the unit's number, so a reader can tell the genes that travelled together from genes that merely sit next to each other; `genome_events.tsv` writes one row per family as always, at the same time and coordinates, and `gene_order.tsv` shows the members adjacent on every node. Groups are declared from Python, as families are. `replacement=True` is refused in a run with groups: a displaced resident would take one gene out of a unit, and what should happen instead is not decided.
+A copy of a group in a genome is a **unit**. `groups.tsv` lists every gene copy that was ever minted into a unit, by family id, with the unit's number, so a reader can tell the genes that travelled together from genes that merely sit next to each other; `genome_events.tsv` writes one row per family as always, at the same time and coordinates, and `gene_order.tsv` shows the members adjacent on every node. Groups are declared from Python, as families are. `replacement=True` is refused in a run with groups: a displaced resident would take one gene out of a unit, and what should happen instead is not decided.
+
+### Groups that travel only sometimes
+
+A group that always moves as one is a proof of plumbing, not a benchmark. A method that asks whether two families were transferred together has to get three harder things right, and three dials on `group()` put them in the simulation:
+
+- **`together`**, the probability that a transfer starting on a member carries the whole group: one copy of every other member the donor holds, to the same recipient, at the same time, as one event. With the rest of the probability the drawn gene goes alone. At 1 the group always travels; at 0 it never travels on purpose. It applies to transfers only.
+- **`adjacent=False`** switches off everything positional: the members are laid out like any named family, no run snaps to them and nothing protects them from a breakpoint. A group with `together=0` and `adjacent=False` is indistinguishable from independent families, which is the null a benchmark needs.
+- **`fates`**, what a loss or a duplication takes. `"family"`, the default, takes the genes the run draws, member or not, so families that arrived together drift apart afterwards; a tandem copy of a member is placed beside the group and is not a member. `"group"` takes the whole group, and a copy of it is a new unit.
+
+Two things a co-transfer method must not call come from what the rest of the level already does. A **hub** is a family with its own transfer rate far above the others, `family("H", transfer=40.0)`; it shares genomes with everything by rate alone. A **decoy** is a family whose transfers prefer genomes that already carry another family, through a joint run: it arrives into those genomes by separate events at separate times, so the two co-occur across the tree as a co-transferred pair would, and nothing was transferred together.
+
+```python
+from zombi2.genomes import family, group, simulate_genomes_ordered
+from zombi2.params import Recipients
+from zombi2.species import simulate_species_tree
+from zombi2.tree import with_stem
+
+# start at the first split: on the stem one lineage is alive, so nothing can be transferred
+# there and a family can only be lost, which at loss=0.4 happens about one time in three
+tree = with_stem(simulate_species_tree(birth=1.0, death=0.0, n_extant=30, seed=1).complete_tree, 0.0)
+result = simulate_genomes_ordered(
+    tree, initial_families=500, seed=1, joint=True,
+    duplication=0.1, transfer=0.4, loss=0.4, inversion=0.1, transposition=0.1,
+    families=[family("A"), family("B"), family("C"),
+              family("H", transfer=40.0),                       # the hub
+              family("D", transfer_to=Recipients().weighted_by(  # the decoy: prefers A, never travels with it
+                  "genomes:A", {"present": 20.0, "absent": 1.0}))],
+    groups=[group("pack", ["A", "B", "C"], together=0.6, adjacent=False)])
+result.write("out/co-transfer")
+```
+
+The truth such a benchmark reads is the `event` column of `genome_events.tsv`: every row of one event carries the same id, so the families a transfer carried are the rows with its id. About six in ten of the events that touch `A`, `B` or `C` carry all three; the decoy's events carry `D` alone, which is what makes it a decoy. The tables write families by id, and `genome_summary.json` maps each declared name to its id under `families.names`.
 
 ## On the command line
 

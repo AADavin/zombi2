@@ -518,8 +518,7 @@ class OrderedGenomesResult:
                 lineage_multipliers_tsv(self.lineage_multipliers, self.complete_tree.labels(),
                                         ORDERED_LINEAGE_TARGETS), encoding="utf-8")
         if "groups" in outputs:
-            by_id = {fid: name for name, fid in self.family_names.items()}
-            (d / "groups.tsv").write_text(groups_tsv(self.grouped_genes, by_id), encoding="utf-8")
+            (d / "groups.tsv").write_text(groups_tsv(self.grouped_genes), encoding="utf-8")
 
     def summary(self) -> dict:
         """What this run produced, as a plain dict — the payload of ``genome_summary.json``.
@@ -541,7 +540,7 @@ class OrderedGenomesResult:
             born=len({e.family for e in self.edges}),
             surviving=len({g.family for i in extant for c in self.node_genomes.get(i, ())
                            for g in c.genes}),
-            named=len(self.family_names), extant=len(extant),
+            named=len(self.family_names), family_names=self.family_names, extant=len(extant),
             empty=sum(1 for i in extant if not any(c.genes for c in self.node_genomes.get(i, ()))),
             genes_per_genome=[sum(len(c.genes) for c in self.node_genomes.get(i, ())) for i in extant],
             chromosomes_per_genome=[len(self.node_genomes.get(i, ())) for i in extant],
@@ -592,7 +591,8 @@ def _initial_genome_tsv(initial_genome) -> str:
 
 
 def _ordered_summary(*, seed, events, born, surviving, named, extant, empty, genes_per_genome,
-                     chromosomes_per_genome, rearrangements, chromosome_events) -> dict:
+                     chromosomes_per_genome, rearrangements, chromosome_events,
+                     family_names=None) -> dict:
     """The payload of ``genome_summary.json``, from the numbers it reports. One function, so a run
     kept in memory (`OrderedGenomesResult.summary`) and a streamed run (`_OrderedStream`) cannot report
     them differently. ``rearrangements`` and ``chromosome_events`` count records by kind."""
@@ -601,8 +601,9 @@ def _ordered_summary(*, seed, events, born, surviving, named, extant, empty, gen
         "seed": seed,
         "resolution": "ordered",
         "events": events,
+        # ``names`` is the join from a declared family's name to the id every table writes
         "families": {"born": born, "surviving": surviving, "died_out": born - surviving,
-                     "named": named},
+                     "named": named, "names": dict(sorted((family_names or {}).items()))},
         "extant_genomes": extant,
         "empty_genomes": empty,
         "genes_per_genome": _stats(genes_per_genome),
@@ -634,7 +635,36 @@ def _ordered_summary(*, seed, events, born, surviving, named, extant, empty, gen
 #: acted on. Rows of one event therefore repeat their coordinates; that is the price of a row being
 #: about one gene, and it buys a row that stands alone. (The rearrangements that used to be
 #: interleaved here, with the nine genealogy columns blank, are now ``rearrangement_events.tsv``.)
-_EVENT_COLS = _COLS + ("chromosome", "start", "length", "dest_chromosome", "dest_position")
+_EVENT_COLS = _COLS + ("chromosome", "start", "length", "dest_chromosome", "dest_position", "event")
+
+class _EventIds:
+    """One id per **event** for the written rows (#471). The genealogy table has one row per family
+    an event touched, so a segmental event is several rows; they are consecutive and share a time, a
+    kind and a branch, and that is what one id covers. A transfer's branch is its donor's, a loss's
+    the branch the copy died on, every other event's the branch of its first child; a speciation
+    is one id per node. The counter lives across the batches of a streamed run."""
+
+    def __init__(self) -> None:
+        self.n = 0
+        self.last: tuple | None = None
+
+    def of(self, key: tuple) -> int:
+        if key != self.last:
+            self.last = key
+            self.n += 1
+        return self.n
+
+
+def _event_ids(events, branch, ids: _EventIds) -> list[int]:
+    """The id of each event of `events_from_edges(edges)`, in that order (see `_EventIds`)."""
+    out = []
+    for e in events:
+        if e.kind == "loss":
+            b = branch[e.parents[0]]
+        else:
+            b = branch[e.children[0]] if e.children else branch.get(e.parents[0]) if e.parents else None
+        out.append(ids.of((e.time, e.kind, b)))
+    return out
 
 
 def _position_key(kind, lineage, family):
@@ -682,11 +712,12 @@ def _coordinates(events, event_positions, branches=None) -> list[str]:
 
 
 def _events_tsv(events, event_positions, names=None) -> str:
-    """The genealogy with the place each event happened (see `_EVENT_COLS`)."""
+    """The genealogy with the place each event happened, and one id per event (see `_EVENT_COLS`)."""
     rows = event_rows(events, names)
+    ids = _event_ids(events_from_edges(events), _branches(events), _EventIds())
     return "\n".join(["\t".join(_EVENT_COLS),
-                      *[f"{r}\t{c}" for r, c in zip(rows, _coordinates(events, event_positions))]]
-                     ) + "\n"
+                      *[f"{r}\t{c}\t{i}" for r, c, i in
+                        zip(rows, _coordinates(events, event_positions), ids)]]) + "\n"
 
 
 # --- a run written to disk as it goes (stream_to=) ------------------------------------------------
@@ -765,6 +796,7 @@ class _OrderedStream:
                                  if "chromosome_events" in want else None)
         self._gene_order = (self._open(self.directory / "gene_order.tsv", "\t".join(_GENE_ORDER_COLS))
                             if "gene_order" in want else None)
+        self._ids = _EventIds()                  # one id per event, across the batches
 
     @staticmethod
     def _open(path, header: str):
@@ -786,7 +818,9 @@ class _OrderedStream:
             if self._events is not None:
                 rows = event_rows(edges, self.names, branch)
                 cells = _coordinates(edges, self.positions, branch)
-                self._events.writelines(f"{row}\t{cell}\n" for row, cell in zip(rows, cells))
+                ids = _event_ids(events_from_edges(edges), branch, self._ids)
+                self._events.writelines(f"{row}\t{cell}\t{i}\n"
+                                        for row, cell, i in zip(rows, cells, ids))
                 self._n_rows += len(rows)
             self._tally.add(edges)
             self.n_edges += len(edges)
@@ -874,6 +908,7 @@ class _OrderedStream:
             write_summary(d / "genome_summary.json", _ordered_summary(
                 seed=seed, events=self._tally.counts(), born=self._born,
                 surviving=len(self._surviving), named=named, extant=len(self._extant),
+                family_names={name: fid for fid, name in (family_names or {}).items()},
                 empty=self._empty, genes_per_genome=self._genes_per_genome,
                 chromosomes_per_genome=self._chromosomes_per_genome,
                 rearrangements=self._rearranged, chromosome_events=self._chromosome_kinds))
@@ -887,7 +922,7 @@ class _OrderedStream:
                 lineage_multipliers_tsv(lineage_multipliers, self.tree.labels(),
                                         ORDERED_LINEAGE_TARGETS), encoding="utf-8")
         if "groups" in want:
-            (d / "groups.tsv").write_text(groups_tsv(grouped_genes, family_names), encoding="utf-8")
+            (d / "groups.tsv").write_text(groups_tsv(grouped_genes), encoding="utf-8")
         return StreamedRun(str(d), seed, self._born, self.n_edges, self.outputs)
 
     def _write_profiles(self, path) -> None:
@@ -1685,9 +1720,17 @@ class GeneGroup:
 
     name: str
     members: tuple[str, ...]
+    #: the probability that a transfer starting on a member carries the whole group (#471)
+    together: float = 1.0
+    #: whether the members are laid out side by side and kept there: no run cuts them, nothing is
+    #: inserted between them. ``False`` makes the group a package for transfers alone.
+    adjacent: bool = True
+    #: ``"family"``: losses and duplications take the genes a run draws, member or not;
+    #: ``"group"``: they take the whole group, and a copy of it is a new unit
+    fates: str = "family"
 
 
-def group(name=None, members=None) -> GeneGroup:
+def group(name=None, members=None, *, together=1.0, adjacent=True, fates="family") -> GeneGroup:
     """Declare a **group of families** that travel together at the ordered resolution::
 
         simulate_genomes_ordered(tree, initial_families=200, duplication=0.1, transfer=0.4,
@@ -1714,6 +1757,26 @@ def group(name=None, members=None) -> GeneGroup:
     which unit, so a reader can tell the genes that travelled together from the genes that merely sit
     next to each other. ``replacement=True`` is refused in a run with groups: a displaced resident
     would take one gene out of a unit, and what should happen instead is not decided.
+
+    Three dials make the group a benchmark rather than a certainty (#471):
+
+    - ``together`` is the probability that a transfer starting on a member carries the whole group:
+      one copy of every other member the donor holds, to the same recipient, at the same time, as
+      **one event**. With ``1 - together`` the drawn gene goes alone. At 1 every transfer of a
+      member is a transfer of the group; at 0 the members never travel on purpose. It applies to
+      transfers only.
+    - ``adjacent=False`` switches off everything positional: the members are laid out like any named
+      family, no run snaps to them and no breakpoint rule protects them. A group with ``together=0``
+      and ``adjacent=False`` is indistinguishable from independent families, which is the null a
+      co-transfer benchmark needs.
+    - ``fates`` says what a loss or a duplication takes. ``"family"`` (the default): the genes the
+      run draws, member or not, so families that arrived together drift apart afterwards; a tandem
+      copy of a member is placed beside the group, not inside it, and is not a member. ``"group"``:
+      the whole group, and a copy of it is a new unit.
+
+    Every row of ``genome_events.tsv`` carries an ``event`` id, the same on every family's row of
+    one event, so whether two families shared a transfer is read off the table by that id and
+    never reconstructed from coordinates.
     """
     if name is None or not isinstance(name, str) or not name.strip():
         raise ValueError("group() declares one group of families and needs its name: "
@@ -1728,14 +1791,21 @@ def group(name=None, members=None) -> GeneGroup:
         raise ValueError(f"group {name!r}: every member is a family name, got {list(members)}")
     if len(set(members)) != len(members):
         raise ValueError(f"group {name!r} names a family twice: {list(members)}")
-    return GeneGroup(name, members)
+    if isinstance(together, bool) or not isinstance(together, (int, float)) or not 0.0 <= together <= 1.0:
+        raise ValueError(f"group {name!r}: together is a probability in [0, 1], got {together!r}")
+    if fates not in ("family", "group"):
+        raise ValueError(f"group {name!r}: fates is 'family' or 'group', got {fates!r}")
+    if not isinstance(adjacent, bool):
+        raise ValueError(f"group {name!r}: adjacent is True or False, got {adjacent!r}")
+    return GeneGroup(name, members, float(together), adjacent, fates)
 
 
-def resolve_groups(groups, declared, started_named) -> dict[str, tuple[str, ...]]:
-    """``{group name: (family name, …)}`` from ``groups=[group(…), …]``, checked against the declared
-    families: every member is declared, no family is in two groups, no member carries an ``origin``
-    (a group starts in the initial genome, whole). Empty when none were declared."""
-    out: dict[str, tuple[str, ...]] = {}
+def resolve_groups(groups, declared, started_named) -> dict[str, GeneGroup]:
+    """``{group name: GeneGroup}`` from ``groups=[group(…), …]``, checked against the declared
+    families: every member is declared, no family is in two groups, no member of an adjacent group
+    carries an ``origin`` (such a group starts in the initial genome, whole). Empty when none were
+    declared."""
+    out: dict[str, GeneGroup] = {}
     if groups is None:
         return out
     names = {f.name for f in declared}
@@ -1754,12 +1824,12 @@ def resolve_groups(groups, declared, started_named) -> dict[str, tuple[str, ...]
             if m in owner:
                 raise ValueError(f"family {m!r} is in two groups, {owner[m]!r} and {spec.name!r}; a "
                                  f"family travels with one group.")
-            if m in placed:
-                raise ValueError(f"family {m!r} is in group {spec.name!r} and carries an origin; a "
-                                 f"group starts in the initial genome, whole, so its members take no "
-                                 f"origin.")
+            if m in placed and spec.adjacent:
+                raise ValueError(f"family {m!r} is in group {spec.name!r} and carries an origin; an "
+                                 f"adjacent group starts in the initial genome, whole, so its members "
+                                 f"take no origin.")
             owner[m] = spec.name
-        out[spec.name] = spec.members
+        out[spec.name] = spec
     return out
 
 
@@ -1768,11 +1838,10 @@ def resolve_groups(groups, declared, started_named) -> dict[str, tuple[str, ...]
 GROUPS_HEADER = "group\tunit\tfamily\tgene"
 
 
-def groups_tsv(rows, family_names: dict[int, str] | None = None) -> str:
-    """``groups.tsv`` from ``(group, unit, family id, gene id)`` rows; the family is written by name."""
-    names = family_names or {}
-    return "\n".join([GROUPS_HEADER,
-                      *(f"{g}\t{u}\t{names.get(f, f)}\t{c}" for g, u, f, c in rows)]) + "\n"
+def groups_tsv(rows) -> str:
+    """``groups.tsv`` from ``(group, unit, family id, gene id)`` rows. The family is its id, as in
+    every other table; ``genome_summary.json`` maps the declared names to the ids."""
+    return "\n".join([GROUPS_HEADER, *(f"{g}\t{u}\t{f}\t{c}" for g, u, f, c in rows)]) + "\n"
 
 
 class _Units:
@@ -1784,7 +1853,7 @@ class _Units:
     straddles position 0 of a ring: every cut the engine makes is at a unit's edge, and `_anchor`
     rotates a ring at a run's start, which is one."""
 
-    def __init__(self, groups: dict[str, tuple[str, ...]]) -> None:
+    def __init__(self, groups: dict[str, GeneGroup]) -> None:
         self.groups = groups
         self.of: dict[int, int] = {}            # gene id -> unit id
         self.group_of_unit: dict[int, str] = {}
@@ -1800,6 +1869,15 @@ class _Units:
     def join(self, gene: Gene, unit: int) -> None:
         self.of[gene.id] = unit
         self.rows.append((self.group_of_unit[unit], unit, gene.family, gene.id))
+
+    def fates_of(self, gene: Gene) -> str | None:
+        """``"family"`` or ``"group"`` for a gene in a unit, ``None`` for one that is not."""
+        u = self.of.get(gene.id)
+        return None if u is None else self.groups[self.group_of_unit[u]].fates
+
+    def group_name(self, gene: Gene) -> str | None:
+        u = self.of.get(gene.id)
+        return None if u is None else self.group_of_unit[u]
 
     def keep(self, new: Gene, old: Gene) -> None:
         """``new`` continues ``old`` in the same genome, or re-minted at a speciation: same unit."""
@@ -1817,17 +1895,24 @@ class _Units:
             fresh[u] = self.new_unit(self.group_of_unit[u])
         self.join(new, fresh[u])
 
-    def snap(self, chrom, start: int, m: int) -> tuple[int, int]:
+    def snap(self, chrom, start: int, m: int, whole=None) -> tuple[int, int]:
         """The run of ``m`` genes from ``start``, with a unit counted as one gene and never cut: the
         start moves back to the first gene of its unit, and the run then covers ``m`` units or genes
         rightwards, whole units always. Returns ``(start, length in genes)``. The run may wrap
-        position 0 on a ring, as any run may; on a linear chromosome it stops at the last gene."""
+        position 0 on a ring, as any run may; on a linear chromosome it stops at the last gene.
+
+        ``whole(group name)`` says, per group, whether this event takes a unit of it whole; a unit
+        of a group it declines is read gene by gene, as if its genes were not grouped. ``None``
+        takes every unit whole."""
         genes = chrom.genes
         n = len(genes)
         if not n:
             return start, m
         circular = chrom.topology == "circular"
+        taken_whole = (lambda u: True) if whole is None else (lambda u: whole(self.group_of_unit[u]))
         u = self.of.get(genes[start].id)
+        if u is not None and not taken_whole(u):
+            u = None
         if u is not None:
             steps = 0
             while steps < n - 1:
@@ -1847,6 +1932,8 @@ class _Units:
             if not circular and p >= n:
                 break
             u = self.of.get(genes[p % n].id)
+            if u is not None and not taken_whole(u):
+                u = None
             if u is None:
                 length += 1
                 p += 1
@@ -1920,15 +2007,20 @@ def _duplicate(chrom, j, m, node, t, events, positions, new_gene, units=None) ->
     segment = chrom.genes[j:j + m]
     conts = [new_gene(g.family, g.strand) for g in segment]
     copies = [new_gene(g.family, g.strand) for g in segment]
-    chrom.genes[j:j + m] = conts + copies              # [.. conts .., .. copies .., ...]
+    chrom.genes[j:j + m] = conts                       # the continuations stay in place
+    at = j + m                                         # the copy block lands right after them
+    if units is not None:
+        at = units.slot(chrom.genes, at)               # or beside the unit the run ended in (#471)
+    chrom.genes[at:at] = copies                        # [.. conts .., .. copies .., ...]
     fresh: dict[int, int] = {}                         # a copied unit is a new unit (#468)
     for old, cont, cp in zip(segment, conts, copies):
         events.append(GeneEdge(t, "duplication", node.id, old.family, cont.id, parent=old.id))
         events.append(GeneEdge(t, "duplication", node.id, old.family, cp.id, parent=old.id))
         if units is not None:
             units.keep(cont, old)
-            units.copy(cp, old, fresh)
-    positions.append(EventPosition(t, "duplication", node.id, chrom.id, j, m, dest_position=j + m))
+            if units.fates_of(old) == "group":        # fates="family": the copy is not a member
+                units.copy(cp, old, fresh)
+    positions.append(EventPosition(t, "duplication", node.id, chrom.id, j, m, dest_position=at))
     return m
 
 
@@ -2012,7 +2104,8 @@ def _translocate(genome, ci, i, m, node, t, rearrangements, rng, inversion_proba
 
 def _do_transfer(rng, tree, alive, gen, counts, kd, cdi, jd, m, t, events, positions, new_gene,
                  transfer_to, replacement, self_transfer, depth, cap=None,
-                 to_traj=None, groups=None, fam_choice=None, units=None) -> tuple[int, int | None]:
+                 to_traj=None, groups=None, fam_choice=None, units=None, carry=None,
+                 whole=None) -> tuple[int, int | None]:
     """The segment ``[jd, jd+m)`` on the donor's chromosome ``cdi`` transfers to a contemporaneous
     recipient chosen by ``transfer_to``: each gene ends → a continuation on the donor branch and a
     transferred copy on the recipient (a horizontal gene-tree edge). The run may wrap position 0 on a
@@ -2081,7 +2174,21 @@ def _do_transfer(rng, tree, alive, gen, counts, kd, cdi, jd, m, t, events, posit
     jd = _anchor(gen[kd][cdi], jd, m)
     segment = gen[kd][cdi].genes[jd:jd + m]
     carried = [g.family for g in segment]
-    if _run_over_cap(counts.of(kr), carried, cap):      # the recipient is full: same thinning
+    # The group travels (#471): one copy of every other member the donor holds, drawn uniformly
+    # among its copies, goes with the segment, to the same recipient, as the same event. A member
+    # the segment already covers is not taken twice.
+    extras: list[tuple[int, int]] = []
+    if carry:
+        have = set(carried)
+        for fam in carry:
+            if fam in have:
+                continue
+            spots = [(ci, p) for ci, ch in enumerate(gen[kd]) for p, g in enumerate(ch.genes)
+                     if g.family == fam and not (ci == cdi and jd <= p < jd + m)]
+            if spots:
+                extras.append(spots[int(rng.integers(len(spots)))])
+    if _run_over_cap(counts.of(kr), carried + [gen[kd][ci].genes[p].family for ci, p in extras],
+                     cap):                              # the recipient is full: same thinning
         return 0, None
     conts = [new_gene(g.family, g.strand) for g in segment]
     xfers = [new_gene(g.family, g.strand) for g in segment]
@@ -2112,7 +2219,9 @@ def _do_transfer(rng, tree, alive, gen, counts, kd, cdi, jd, m, t, events, posit
         fresh: dict[int, int] = {}                # a transferred unit is a new unit on the recipient
         for old, cont, xf in zip(segment, conts, xfers):
             units.keep(cont, old)
-            units.copy(xf, old, fresh)
+            gname = units.group_name(old)
+            if gname is not None and (whole is None or whole(gname)):
+                units.copy(xf, old, fresh)        # a unit carried whole arrives as a unit
     rchrom.genes[pos:pos] = xfers
     counts.added_all(kr, carried)                       # the donor keeps its families: continuations
     positions.append(EventPosition(t, "transfer_recipient", recipient, rchrom.id, pos, m,
@@ -2130,6 +2239,29 @@ def _do_transfer(rng, tree, alive, gen, counts, kd, cdi, jd, m, t, events, posit
                             replaced=replaced))
         events.append(GeneEdge(t, "transfer", recipient, old.family, xf.id, parent=old.id,
                             recipient=recipient, donor=donor, replaced=replaced))
+    # the other members, each its own one-gene segment of the same event: the donor keeps a
+    # continuation in place, the copy lands at its own spot on a recipient chromosome
+    for ci, p in extras:
+        dchrom = gen[kd][ci]
+        old = dchrom.genes[p]
+        cont, xf = new_gene(old.family, old.strand), new_gene(old.family, old.strand)
+        dchrom.genes[p] = cont
+        if units is not None:
+            units.keep(cont, old)
+        positions.append(EventPosition(t, "transfer_donor", donor, dchrom.id, p, 1,
+                                       donor=donor, recipient=recipient))
+        xchrom = rgenome[int(rng.integers(len(rgenome)))]
+        xpos = int(rng.integers(len(xchrom.genes) + 1))
+        if units is not None:
+            xpos = units.slot(xchrom.genes, xpos)
+        xchrom.genes[xpos:xpos] = [xf]
+        counts.added(kr, old.family)
+        delta += 1
+        positions.append(EventPosition(t, "transfer_recipient", recipient, xchrom.id, xpos, 1,
+                                       donor=donor, recipient=recipient))
+        events.append(GeneEdge(t, "transfer", donor, old.family, cont.id, parent=old.id, donor=donor))
+        events.append(GeneEdge(t, "transfer", recipient, old.family, xf.id, parent=old.id,
+                            recipient=recipient, donor=donor))
     return delta, kr
 
 
@@ -2558,8 +2690,12 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
             "replacement=True is not built for a run with groups: a transferred copy displaces one "
             "resident gene, which would take that gene out of its group. Run without replacement, "
             "or without groups.")
-    units = _Units(group_map) if group_map else None
-    grouped_family = {m: g for g, members in group_map.items() for m in members}
+    # units exist for the adjacent groups alone; a group with adjacent=False is a package for
+    # transfers and nothing positional
+    units = _Units(group_map) if any(g.adjacent for g in group_map.values()) else None
+    grouped_family = {m: g.name for g in group_map.values() if g.adjacent for m in g.members}
+    def fates_group(gname: str) -> bool:
+        return group_map[gname].fates == "group"
     # A family's own duplication, transfer or loss, read by the family resolution's resolver. Here it
     # applies to the segment, as a per-family draw does (SPEC §6): every gene carries its family's rate
     # or the run's, and the extent stays the run's.
@@ -2791,11 +2927,11 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                                              len(chrom.genes) - 1, 1, family=fam))
     # a group is laid out whole, its members consecutive and in the order written, on one chromosome
     # dealt after the single named families; each is the run's first unit of that group (#468)
-    for gi, (gname, members) in enumerate(group_map.items()):
+    for gi, grp in enumerate(g for g in group_map.values() if g.adjacent):
         assert units is not None
         chrom = initial_chroms[(initial_families + len(family_names) + gi) % n_initial_chrom]
-        unit = units.new_unit(gname)
-        for member in members:
+        unit = units.new_unit(grp.name)
+        for member in grp.members:
             fam = named[member]
             founder = new_gene(fam, +1)
             _live(chrom).append(founder)
@@ -2803,6 +2939,9 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
             events.append(GeneEdge(t, "origination", root.id, fam, founder.id))
             event_positions.append(EventPosition(t, "origination", root.id, chrom.id,
                                                  len(chrom.genes) - 1, 1, family=fam))
+    # which group a family travels with, by the family's id, and each group's member ids (#471)
+    group_of_family: dict[int, GeneGroup] = {named[m]: g for g in group_map.values() for m in g.members}
+    member_ids = {g.name: tuple(named[m] for m in g.members) for g in group_map.values()}
     # the run's starting genome: a deep snapshot, so the live genome's events never reach it
     # the ids of the families `origins=` places: minted here, straight after the initial and named
     # ones and in the order they were written, so the same origins name the same families at either
@@ -3268,8 +3407,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                                              own=own_pick.get("duplication"))
                     if picked is not None:
                         k, ci, j, m = picked
-                        if units is not None:
-                            j, m = cast(Any, units.snap(gen[k][ci], j, m))   # whole units, a unit as one gene (#468)
+                        if units is not None:        # whole units where the group's fates say so
+                            j, m = cast(Any, units.snap(gen[k][ci], j, m, fates_group))
                         copied = _run_families(gen[k][ci], j, m)
                         if not _run_over_cap(counts.of(k), copied, cap):
                             total_copies += _duplicate(gen[k][ci], j, m, tree.nodes[alive[k]], t,
@@ -3283,8 +3422,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                                              own=own_pick.get("loss"))
                     if picked is not None:
                         k, ci, j, m = picked
-                        if units is not None:
-                            j, m = cast(Any, units.snap(gen[k][ci], j, m))   # whole units, a unit as one gene (#468)
+                        if units is not None:        # whole units where the group's fates say so
+                            j, m = cast(Any, units.snap(gen[k][ci], j, m, fates_group))
                         taken = _run_families(gen[k][ci], j, m)
                         if _lose_at(gen[k][ci], j, m, tree.nodes[alive[k]], t, events, event_positions):
                             total_copies -= m
@@ -3306,12 +3445,35 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                                              own=own_pick.get("transfer"))
                     if picked is not None:                # driven: the weighted lineage is the DONOR
                         kd, cdi, jd, m = picked
+                        carry = None
+                        whole_now = None
+                        if group_of_family:
+                            # does the group travel this time? One coin per group per event, flipped
+                            # the first time the event meets the group (#471); a group with
+                            # together=1 draws nothing, so a #468 run is the run it was
+                            decided: dict[str, bool] = {}
+
+                            def whole_now(gname: str) -> bool:
+                                if gname not in decided:
+                                    g = group_map[gname]
+                                    # 0 and 1 draw nothing: a run at either is byte-identical to
+                                    # one with no dial at all
+                                    decided[gname] = (g.together >= 1.0 or
+                                                      (g.together > 0.0 and float(rng.random()) < g.together))
+                                return decided[gname]
+                            pack = group_of_family.get(gen[kd][cdi].genes[jd].family)
+                            if pack is not None:
+                                if whole_now(pack.name):
+                                    carry = member_ids[pack.name]
+                                elif pack.adjacent:
+                                    m = cast(Any, 1)     # the drawn gene goes alone, not its unit
                         if units is not None:
-                            jd, m = cast(Any, units.snap(gen[kd][cdi], jd, m))
+                            jd, m = cast(Any, units.snap(gen[kd][cdi], jd, m, whole_now))
                         delta, kr = _do_transfer(rng, tree, alive, gen, counts, kd, cdi, jd, m, t,
                                                  events, event_positions, new_gene, transfer_to,
                                                  replacement, self_transfer, depth, cap,
-                                                 to_traj, group_of, fam_choice, units)
+                                                 to_traj, group_of, fam_choice, units, carry,
+                                                 whole_now)
                         total_copies += delta
                         if kr is not None:   # the recipient's gene content changed, the donor's did not
                             rows.touched(kr, gen[kr])
@@ -3471,15 +3633,16 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                                                      ORDERED_LINEAGE_TARGETS)
                                if any_lineage else {})
     grouped_genes = tuple(units.rows) if units is not None else ()
+    group_members = {g.name: g.members for g in group_map.values()}
     if to_disk is not None:
         return to_disk.close(seed=seed, links=links, initial_genome=initial_genome, named=len(named),
                              family_multipliers=multipliers,
                              lineage_multipliers=per_lineage_multipliers,
-                             groups=group_map, grouped_genes=grouped_genes,
+                             groups=group_members, grouped_genes=grouped_genes,
                              family_names={fid: name for name, fid in named.items()})
     return OrderedGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed,
                                 named, module_map, event_positions, initial_genome, links,
-                                multipliers, per_lineage_multipliers, group_map, grouped_genes)
+                                multipliers, per_lineage_multipliers, group_members, grouped_genes)
 
 
 __all__ = ["simulate_genomes_ordered", "OrderedGenomesResult", "Gene", "Chromosome",
