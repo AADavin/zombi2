@@ -544,7 +544,9 @@ def test_sequences_protein_models_write_amino_acid_alignments(tmp_path, genomes_
     out = tmp_path / model
     rc = main(["sequences", str(out), "--from", str(genomes_dir), "--model", model, "--length", "60", "--seed", "1", "--flat"])
     assert rc == 0
-    fasta = next(p for p in out.iterdir() if p.name.startswith("fam"))
+    # a FASTA, by suffix: `family_multipliers.tsv` starts with "fam" too, and on a filesystem that
+    # lists entries in hash order (ext4) it can come first, which read a table as an alignment
+    fasta = next(p for p in sorted(out.iterdir()) if p.name.startswith("fam") and p.suffix == ".fasta")
     residues = set("".join(ln for ln in fasta.read_text(encoding="utf-8").splitlines() if not ln.startswith(">")))
     assert residues <= set(AMINO_ACIDS) and not residues <= set("ACGT")
 

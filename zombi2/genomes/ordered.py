@@ -74,9 +74,9 @@ from .chromosomes import (CHROMOSOME_EVENTS_HEADER, REARRANGEMENT_HEADER, Chromo
                           chromosome_child_branches, chromosome_event_rows, chromosome_events_tsv,
                           rearrangement_event_rows, rearrangement_events_tsv)
 from ..params.retired import check_no_retired_keywords
-from .family import (_FamilyCounts, _LiveGeneContent, live_target, resolve_families,
-                     resolve_family_rates, resolve_family_transfer_to, resolve_live_drivers,
-                     resolve_max_family_size)
+from .family import (_FamilyCounts, _LiveGeneContent, live_target, resolve_burn_in,
+                     resolve_families, resolve_family_rates, resolve_family_transfer_to,
+                     resolve_live_drivers, resolve_max_family_size)
 from ._live import WeightedIndex, enter, retire, weighted_index, without_cyclic_gc
 from ._transfer import (mean_root_to_tip, prepare_transfer_to, recipient_index,
                         recipient_index_all, resolve_transfer_to)
@@ -2265,6 +2265,71 @@ def _do_transfer(rng, tree, alive, gen, counts, kd, cdi, jd, m, t, events, posit
     return delta, kr
 
 
+# --- a burn-in: the root genome grows on one lineage before the tree begins (#473) ------------------
+
+def _burn_in_ordered(genome, burn_in, t_end, rng, rates, extents, inversion_probability, cap, root,
+                     events, positions, rearrangements, new_gene, new_family) -> None:
+    """Run the gene-level events on **one** lineage from ``t_end − burn_in`` to ``t_end``, on
+    ``genome`` (a list of chromosomes) in place, recording at those negative times on the root's
+    branch: origination, duplication and loss with their extents, and the three rearrangements.
+    The chromosome events stay out, so the karyotype the run was given is the one it starts with;
+    so does transfer, there being no other lineage. Rates are per copy and read at the burn-in's own
+    times, so a schedule applies; a per-family draw is refused here (see `resolve_burn_in`)."""
+    dup, los, org, inv, trp, trl = rates
+    dup_ext, los_ext, inv_ext, trp_ext, trl_ext = extents
+    t = t_end - burn_in
+    held: collections.Counter = collections.Counter(g.family for c in genome for g in c.genes)
+    while True:
+        n = _genome_size(genome)
+        one = {"copies": 1, "lineages": 1, "chromosomes": len(genome), "time": t}
+        ctx = {"copies": n, "lineages": 1, "chromosomes": len(genome), "time": t}
+        r_dup = dup.effective(**one) * n
+        r_los = los.effective(**one) * n
+        r_inv = inv.effective(**one) * n
+        r_trp = trp.effective(**one) * n
+        r_trl = trl.effective(**one) * n
+        r_org = org.effective(**ctx)
+        horizon = min(t_end, *(x.next_change(t) for x in (dup, los, org, inv, trp, trl)))
+        total = r_dup + r_los + r_org + r_inv + r_trp + r_trl
+        if total > 0.0:
+            t_ev = t + float(rng.exponential(1.0 / total))
+            if t_ev < horizon:
+                t = t_ev
+                r = float(rng.random()) * total
+                if r < r_org:
+                    fam = _originate(genome, root, t, events, positions, new_gene, new_family, rng)
+                    held[fam] += 1
+                else:
+                    ci, j = _gene_in(genome, int(rng.integers(n)))
+                    chrom = genome[ci]
+                    if r < r_org + r_dup:
+                        m = _extent(rng, dup_ext, chrom, j, ctx)
+                        copied = _run_families(chrom, j, m)
+                        if not _run_over_cap(held, copied, cap):
+                            _duplicate(chrom, j, m, root, t, events, positions, new_gene)
+                            held.update(copied)
+                    elif r < r_org + r_dup + r_los:
+                        m = _extent(rng, los_ext, chrom, j, ctx)
+                        taken = _run_families(chrom, j, m)
+                        if _lose_at(chrom, j, m, root, t, events, positions):
+                            held.subtract(taken)
+                            for fam in taken:
+                                if held[fam] <= 0:
+                                    del held[fam]
+                    elif r < r_org + r_dup + r_los + r_inv:
+                        _invert(chrom, j, _extent(rng, inv_ext, chrom, j, ctx), root, t, rearrangements)
+                    elif r < r_org + r_dup + r_los + r_inv + r_trp:
+                        _transpose(chrom, j, _extent(rng, trp_ext, chrom, j, ctx), root, t,
+                                   rearrangements, rng, inversion_probability)
+                    else:
+                        _translocate(genome, ci, j, _extent(rng, trl_ext, chrom, j, ctx), root, t,
+                                     rearrangements, rng, inversion_probability)
+                continue
+        if horizon >= t_end:
+            break
+        t = horizon                              # a schedule's breakpoint: re-read the rates there
+
+
 # --- the chromosome events: they change chromosome number (the network dynamics) ------------------
 # Each re-mints every chromosome id it touches (so no id spans an event) and records one
 # ``ChromosomeEvent`` — the edge that makes the genealogy a network. Genes keep their ids: a
@@ -2398,7 +2463,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                              translocation_extent=None, inversion_probability=0.0,
                              transfer_to="uniform", replacement=False, self_transfer=False,
                              initial_families=100, families=None, groups=None, joint=False,
-                             max_family_size=10, seed=None, stream_to=None, outputs=None,
+                             max_family_size=10, burn_in=None, seed=None, stream_to=None, outputs=None,
                              compact=False, bundle=None, progress=False,
                              **retired) -> "OrderedGenomesResult | StreamedRun":
     """Evolve ordered genomes — genes with a position and an orientation, on chromosomes — along a
@@ -2512,6 +2577,14 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     copied and lost as one, never cut by a rearrangement and never split by an insertion. The run
     writes ``groups.tsv``, which says which gene copies belong to which copy of the group. See
     `group` for the rules. ``replacement=True`` is refused in a run with groups.
+
+    **A burn-in before the root.** ``burn_in=T`` runs origination, duplication, loss and the three
+    rearrangements on one lineage for a time ``T`` before the tree begins, starting from the empty
+    karyotype, and the tree starts from what that leaves (see `simulate_genomes_family` for what
+    the equilibrium looks like). Its events carry negative times on the root's branch. The
+    chromosome events do not run before the root, nor does transfer. Refused when duplication is
+    not below loss, in a joint run, with a driver, with a draw among lineages or among families
+    (#473).
 
     **Streaming to disk.** ``stream_to=DIR`` writes the run's files as the run goes and keeps none of
     its record in memory, for a run whose record would not fit. The run is the same run: the same seed
@@ -2774,6 +2847,15 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     live_ext_keys = list(dict.fromkeys(cast(str, m.driver) for m in live_ext_mods))
     any_driven = bool(trajs) or bool(live_rate_keys)
     any_ext_driven = any(ext_driven.values())
+    burn_in_time = resolve_burn_in(
+        burn_in, dup, los, tree.nodes[tree.root].birth_time, where="ordered",
+        has_drivers=bool(by_key) or bool(live_rate_mods) or bool(live_ext_mods) or bool(live_choices)
+        or isinstance(transfer_to, Driven) or any(isinstance(r, Driven) for r in fam_transfer_to.values())
+        or any_ext_driven,
+        is_joint=bool(joint),
+        lineage_draws=any(r.carried_modifiers(unit="lineages") for r in _rates.values()),
+        per_lineage=any(_rates[k].scope is PerLineage for k in ("duplication", "loss")),
+        family_draws_unbuilt=any(r.carried_modifiers(unit="families") for r in _rates.values()))
     # The transfer_to slot is prepared **after** `trajs` is fixed, for the same reason: a driven
     # transfer_to is a weight, not a rate, so its trajectory must not join `trajs` and start adding
     # horizon breakpoints. `resolved` doubles as the driver cache, so a trait that drives both a rate
@@ -2889,6 +2971,10 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         # `initial`, not `origination`: a replicon the run *starts* with is not something it did, so
         # counting `origination` in the log gives the de-novo replicons alone
         chromosome_events.append(ChromosomeEvent(t, "initial", root.id, (), (cid,)))
+    if burn_in_time is not None:       # the root genome grows before the root, from nothing (#473)
+        _burn_in_ordered(initial_chroms, burn_in_time, t, rng, (dup, los, org, inv, trp, trl),
+                         (dup_ext, los_ext, inv_ext, trp_ext, trl_ext), inversion_probability, cap,
+                         root, events, event_positions, rearrangements, new_gene, new_family)
     # the origin's initial genome is logged like any other origination — each founding gene appended in turn —
     # so the position table is total over gene-content events and a replay of the root branch can
     # start from an empty karyotype (every other branch starts from its parent's gene_order rows)

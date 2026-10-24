@@ -50,7 +50,7 @@ Once genes have neighbours, **a gene-level event acts on a segment**, a stretch 
 
 How many genes are affected simultaneously by one event? That is its **extent**. By default, extents are computed from a geometric distribution, but this can be changed to other probability distributions. A bare number is the mean of the draw, so `duplication_extent=3` copies about three adjacent genes. The default is a single gene, so every event takes one gene unless you set an extent.
 
-Topology decides where a segment stops. On a circular chromosome a segment that reaches the last gene continues from the first, wrapping position 0, so only the whole chromosome bounds it; on a linear one it stops at the last gene, and a draw that would overrun the end is cut short there.
+A `burn_in` (Chapter 3) runs here too, with the segmental duplications and losses and the three rearrangements before the root; the chromosome events and transfer do not run before it. Topology decides where a segment stops. On a circular chromosome a segment that reaches the last gene continues from the first, wrapping position 0, so only the whole chromosome bounds it; on a linear one it stops at the last gene, and a draw that would overrun the end is cut short there.
 
 One consequence of events affecting multiple genes at the same time is that **a rate counts starts, not hits.** `duplication=0.2` with `duplication_extent=3` does *not* mean each gene is duplicated 0.2 times per unit time. A gene is copied whenever any duplication's segment covers it, which happens about three times as often as the starts alone, so roughly `0.2 × 3 = 0.6`. If you want genes duplicated at a known rate, divide that rate by the mean extent.
 

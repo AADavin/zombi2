@@ -17,6 +17,23 @@ A genome at the family resolution evolves by four kinds of event, applied to eve
 
 The initial genome, at the beginning of the stem, starts with `initial_families` families of one copy each (100 gene families by default); from there the four rates determine how they evolve.
 
+That start sets the number of ancestral families by hand and gives them all the same age. A real ancestral genome holds families of many ages, the result of a long history of originations, duplications and losses. A **burn-in** gives the root such a genome: `burn_in=T` runs origination, duplication and loss on one lineage for a time `T` before the tree begins, starting from an empty genome, and the tree starts from what that leaves.
+
+```python
+from zombi2.genomes import simulate_genomes_family
+from zombi2.species import simulate_species_tree
+
+tree = simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1).complete_tree
+result = simulate_genomes_family(
+    tree, origination=20.0, duplication=0.2, loss=1.0, transfer=0.2,
+    initial_families=0,        # the root genome is the burn-in's alone
+    burn_in=25.0,              # twenty times 1 / (loss - duplication)
+    seed=1)
+root_families = len({c.family for c in result.initial_genome})
+```
+
+The burn-in's events carry negative times in `genome_events.tsv`, on the root's branch, and the gene trees' stems reach above the species root. Run long, it leaves the genome at equilibrium: the copy number of a present family follows Fisher's logarithmic series with ratio `duplication / loss`, and the number of present families is Poisson with mean `origination × (1 / duplication) × ln(loss / (loss − duplication))`; a validation test checks both. The genome forgets its start on the time `1 / (loss − duplication)`, and ten of those is a safe length; the command line says how many the burn-in was. It needs duplication below loss, since the genome has no equilibrium otherwise, and it is refused in a joint run, with a driver, with a draw among lineages, and on the parallel engine. No transfer happens before the root: there is no other lineage to transfer to. `initial_families` and the declared families still start at the root, so a burn-in adds to them.
+
 ### Four things to know
 
 - **Families can evolve at different rates.** This can be used to simulate for example genomes with a core and an accessory part ([Ge4](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_pangenome_by_family-->). Appendix A gives the spelling.
@@ -119,4 +136,8 @@ zombi2 genomes out/ --duplication 0.2 --loss 0.25 --origination 0.5 --seed 1
 # horizontal transfer biased toward close relatives, overwriting resident copies
 zombi2 genomes out/ --transfer 0.5 --transfer-to distance --replacement \
     --origination 0.4 --seed 3
+
+# a root genome at equilibrium: 25 time units of origination, duplication and loss before the tree
+zombi2 genomes out/ --origination 20 --duplication 0.2 --loss 1.0 --initial-families 0 \
+    --burn-in 25 --seed 1
 ```

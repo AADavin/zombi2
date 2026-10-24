@@ -630,6 +630,115 @@ def _lose_at(genome, j, node, t, events) -> None:
     events.append(GeneEdge(t, "loss", node.id, lost.family, lost.id))
 
 
+def resolve_burn_in(burn_in, dup, los, t_root, *, where: str, has_drivers: bool, is_joint: bool,
+                    lineage_draws: bool, per_family_engine: bool = False, per_lineage: bool = False,
+                    family_draws_unbuilt: bool = False) -> float | None:
+    """``burn_in`` checked for ``where`` (the engine's name): a positive time, on a run the burn-in can
+    be the start of. A burn-in runs the genome process on one lineage before the root (#473), so it
+    refuses what needs the tree: a driver (there is none before the root), a joint run (the genome
+    it would read is the one being built), a draw among lineages (drawn per species branch), and
+    the per-family engine, which evolves each family on its own. Duplication must sit below loss at
+    the start of the burn-in, or the genome has no equilibrium to reach. Returns the time, or
+    ``None`` for no burn-in."""
+    if burn_in is None:
+        return None
+    if isinstance(burn_in, bool) or not isinstance(burn_in, (int, float)) or not burn_in > 0.0 \
+            or math.isinf(burn_in):
+        raise ValueError(f"burn_in is a positive time, the length of the run before the root, got "
+                         f"{burn_in!r}")
+    if per_family_engine:
+        raise ValueError("burn_in does not run on the per-family engine (parallel= / stream_to=): "
+                         "a burn-in originates families as it goes, and that engine evolves each "
+                         "family on its own. Drop parallel / stream_to, or the burn_in.")
+    if is_joint:
+        raise ValueError("burn_in is refused in a joint run: before the root there is no genome to "
+                         "read but the one the burn-in is building. Run the burn-in without joint, "
+                         "or drop it.")
+    if has_drivers:
+        raise ValueError("burn_in is refused with a driven rate, extent or transfer_to: a driver "
+                         "lives on the species tree, and the burn-in runs before the tree begins.")
+    if lineage_draws:
+        raise ValueError("burn_in is refused with varying_among('lineages', …): the multiplier is "
+                         "drawn per species branch, and there is no branch before the root.")
+    if per_lineage:
+        raise ValueError("burn_in is refused with a PerLineage duplication or loss: a fixed budget per "
+                         "lineage has no equilibrium of the kind a burn-in reaches. Not built.")
+    if family_draws_unbuilt:
+        raise ValueError(f"burn_in with varying_among('families', …) is not built at the {where} "
+                         f"resolution, where a per-family weight has to reach the segment an event "
+                         f"covers. Run the burn-in without the draw, or at the family resolution.")
+    t0 = t_root - burn_in
+    d = dup.effective(copies=1, lineages=1, chromosomes=1, time=t0)
+    l = los.effective(copies=1, lineages=1, chromosomes=1, time=t0)
+    if not d < l:
+        raise ValueError(f"burn_in needs duplication below loss, since the genome has no equilibrium "
+                         f"otherwise: at the start of the burn-in duplication is {d:g} per copy and "
+                         f"loss {l:g}.")
+    return float(burn_in)
+
+
+def burn_in_forgetting_time(dup, los, t0) -> float:
+    """``1 / (loss − duplication)`` at time ``t0``: the time on which the genome forgets its start.
+    A burn-in of ten of these is the recommendation; the CLI reports the ratio."""
+    d = dup.effective(copies=1, lineages=1, chromosomes=1, time=t0)
+    l = los.effective(copies=1, lineages=1, chromosomes=1, time=t0)
+    return 1.0 / (l - d)
+
+
+def _burn_in_family(genome, burn_in, t_end, rng, dup, los, org, fam_mult, cap, root, events,
+                    new_copy, new_family) -> None:
+    """Run duplication, loss and origination on **one** lineage from ``t_end − burn_in`` to
+    ``t_end``, on ``genome`` in place, recording to ``events`` at those (negative) times on the
+    root's branch (#473). Starting from an empty genome and run long, it leaves the genome at the
+    equilibrium of its rates: families of many ages, their copy numbers on Fisher's logarithmic
+    series, their number Poisson. The rates' schedules are read at the burn-in's own times, and a
+    per-family draw weights each copy as it does on the tree; the cap binds as it does there. No
+    transfer: there is no other lineage to transfer to."""
+    t = t_end - burn_in
+    held: collections.Counter = collections.Counter(c.family for c in genome)
+    mult_d, mult_l = fam_mult["duplication"], fam_mult["loss"]
+    while True:
+        n = len(genome)
+        ud = dup.effective(copies=1, lineages=1, time=t)
+        ul = los.effective(copies=1, lineages=1, time=t)
+        wd: list[float] | None = None
+        wl: list[float] | None = None
+        if mult_d or mult_l:                     # a per-family draw: each copy at its family's factor
+            wd = [ud * mult_d.get(c.family, 1.0) for c in genome]
+            wl = [ul * mult_l.get(c.family, 1.0) for c in genome]
+            r_dup, r_los = sum(wd), sum(wl)
+        else:
+            r_dup, r_los = ud * n, ul * n
+        r_org = org.effective(copies=n, lineages=1, time=t)
+        horizon = min(t_end, dup.next_change(t), los.next_change(t), org.next_change(t))
+        total = r_dup + r_los + r_org
+        if total > 0.0:
+            t_ev = t + float(rng.exponential(1.0 / total))
+            if t_ev < horizon:
+                t = t_ev
+                r = float(rng.random()) * total
+                if r < r_dup:
+                    j = weighted_index(rng, wd, r_dup) if wd is not None else int(rng.integers(n))
+                    fam = genome[j].family
+                    if cap is None or held[fam] < cap:
+                        _duplicate(genome, j, root, t, events, new_copy)
+                        held[fam] += 1
+                elif r < r_dup + r_los:
+                    j = weighted_index(rng, wl, r_los) if wl is not None else int(rng.integers(n))
+                    fam = genome[j].family
+                    _lose_at(genome, j, root, t, events)
+                    held[fam] -= 1
+                    if not held[fam]:
+                        del held[fam]
+                else:
+                    _originate(genome, root, t, events, new_copy, new_family)
+                    held[genome[-1].family] += 1
+                continue
+        if horizon >= t_end:
+            break
+        t = horizon                              # a schedule's breakpoint: re-read the rates there
+
+
 def resolve_modules(modules, family_names) -> dict:
     """Validate ``modules={"flagellum": ["flgA", …]}`` — a **named group of named families**.
 
@@ -1270,7 +1379,7 @@ def _do_transfer(rng, tree, alive, gen, counts, kd, jd, t, events, new_copy,
 def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, origination=0.0,
                             transfer_to="uniform", replacement=False, self_transfer=False,
                             initial_families=100, families=None, max_family_size=10, joint=False,
-                            seed=None, parallel=False, stream_to=None, outputs=None,
+                            burn_in=None, seed=None, parallel=False, stream_to=None, outputs=None,
                             compact=False, bundle=None, progress=False,
                             **retired) -> "FamilyGenomesResult | StreamedRun":
     """Evolve a multiset of gene families along a species tree by duplication, transfer, loss, and
@@ -1348,6 +1457,18 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     ``Recipients().weighted_by("genomes:A", {"present": 20.0, "absent": 1.0})`` weighs each candidate
     by whether it carries ``A`` when the transfer fires. A declared family can give its own
     ``transfer_to`` (see `family()`), which is used for its copies instead of the run's.
+
+    **A burn-in before the root.** ``burn_in=T`` runs duplication, loss and origination on one
+    lineage for a time ``T`` before the species tree begins, starting from an empty genome, and the
+    tree starts from what that leaves: families of many ages rather than ``initial_families`` of
+    the same age, their copy numbers on Fisher's logarithmic series with ratio
+    duplication/loss, their number Poisson with mean origination · (1/duplication) ·
+    ln(loss/(loss − duplication)). Its events carry negative times on the root's branch, and the
+    gene trees' stems reach above the species root. ``initial_families`` and the declared families
+    still start at the root, so set ``initial_families=0`` for a root genome that is the burn-in's
+    alone. The genome forgets its start on the time 1/(loss − duplication); ten of those is a safe
+    length. Refused when duplication is not below loss, in a joint run, with a driver, with a draw
+    among lineages, and on the per-family engine; no transfer happens before the root (#473).
 
     ``parallel`` opts into a **separate** engine that evolves the families concurrently, one per worker
     process — the families are independent (a transfer roams a copy across lineages but never mixes two
@@ -1538,6 +1659,16 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     # adding horizon breakpoints (see prepare_transfer_to). `resolved` is passed along as the driver
     # cache, so a driver shared between a rate and transfer_to is loaded once.
     trajs = dict(resolved)
+    burn_in_time = resolve_burn_in(
+        burn_in, dup, los, tree.nodes[tree.root].birth_time, where="family",
+        has_drivers=bool(all_mods) or isinstance(transfer_to, Driven)
+        or any(isinstance(r, Driven) for r in fam_transfer_to.values()),
+        is_joint=bool(joint), lineage_draws=any(dup.carried_modifiers(unit="lineages")
+                                                 or los.carried_modifiers(unit="lineages")
+                                                 or org.carried_modifiers(unit="lineages")
+                                                 or tra.carried_modifiers(unit="lineages")),
+        per_family_engine=bool(parallel or stream_to is not None),
+        per_lineage=(dup.scope is PerLineage or los.scope is PerLineage))
 
     def prepare_choice(rule):
         """``(groups, trajectory)`` for a recipient rule. A rule reading live gene content has nothing
@@ -1740,6 +1871,9 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     genomes: dict[int, tuple[GeneCopy, ...]] = {}
     events: list[GeneEdge] = []
     enter(alive, gen, pos, root.id, [])
+    if burn_in_time is not None:       # the root genome grows before the root, from nothing (#473)
+        _burn_in_family(gen[0], burn_in_time, t, rng, dup, los, org, fam_mult, cap, root, events,
+                        new_copy, new_family)
     for _ in range(initial_families):  # lay down the origin's genome as originations at t = root.birth_time
         _originate(gen[0], root, t, events, new_copy, new_family)
     named: dict[str, int] = {}  # a minted id per declared name (so GeneCopy.family stays an int)
