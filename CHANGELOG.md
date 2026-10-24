@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.53.0] - 2026-10-24
+
 ### Added
 
 - A burn-in before the root: `burn_in=T` (`--burn-in T`) runs origination, duplication and loss on one lineage for a time `T` before the species tree begins, from an empty genome, so the root holds families of many ages and copy numbers rather than `initial_families` of the same age. Its events carry negative times. At the ordered resolution the segmental events and the rearrangements run too, the chromosome events do not. Refused when duplication is not below loss, in a joint run, with a driver, with a draw among lineages, and on the per-family engine. Two validation checks pin the equilibrium it reaches. (#473)
