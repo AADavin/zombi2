@@ -127,7 +127,7 @@ _DEFAULT_INITIAL_FAMILIES = 100
 _DEFAULT_MAX_FAMILY_SIZE = 10
 
 _NOT_IN_NUCLEOTIDE = (("initial_families", None), ("replacement", False),
-                      ("max_family_size", _DEFAULT_MAX_FAMILY_SIZE))
+                      ("max_family_size", _DEFAULT_MAX_FAMILY_SIZE), ("burn_in", None))
 
 
 def _topology(text: str):
@@ -195,6 +195,12 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                    metavar="CAP", dest="max_family_size",
                    help=f"cap on copies of one family in one genome (default "
                         f"{_DEFAULT_MAX_FAMILY_SIZE}), or 'none' for no cap")
+    g.add_argument("--burn-in", type=float, default=None, metavar="TIME", dest="burn_in",
+                   help="run origination, duplication and loss on one lineage for this long before "
+                        "the tree begins, from an empty genome, so the root holds families of many "
+                        "ages; use with --initial-families 0. The genome forgets its start on "
+                        "1/(loss - duplication); ten of those is a safe length. Needs duplication "
+                        "below loss; no transfer before the root")
     g = p.add_argument_group("structured genome", "only with --resolution ordered or nucleotide")
     g.add_argument("--inversion", type=_rate, default=0.0, metavar="RATE",
                    help="segmental inversion rate (per copy; per lineage at --resolution nucleotide)")
@@ -585,7 +591,7 @@ def run(args, parser):
                   self_transfer=args.self_transfer, seed=args.seed)
     # the knob only the family and ordered resolutions have — kept out of `common`, which the
     # nucleotide engine shares and which does not have it
-    family_knobs = dict(max_family_size=args.max_family_size)
+    family_knobs = dict(max_family_size=args.max_family_size, burn_in=args.burn_in)
     structured = dict(inversion=args.inversion, transposition=args.transposition,
                       translocation=args.translocation, chromosomes=args.chromosomes,
                       topology=args.topology, fission=args.fission, fusion=args.fusion,
@@ -638,6 +644,15 @@ def run(args, parser):
             parallel=parallel_from_args(args, parser), progress=not args.quiet,
             **family_knobs, **common)
 
+    if args.burn_in is not None:
+        # the run log says how long the burn-in was against the time the genome forgets its start
+        from zombi2.genomes.family import burn_in_forgetting_time
+        from zombi2.params import PerCopy, as_rate
+        forget = burn_in_forgetting_time(as_rate(common["duplication"], default_scope=PerCopy),
+                                         as_rate(common["loss"], default_scope=PerCopy),
+                                         tree.nodes[tree.root].birth_time - args.burn_in)
+        warn(f"burn-in of {args.burn_in:g} is {args.burn_in / forget:.1f} times the forgetting time "
+             f"1/(loss - duplication) = {forget:.3g}; ten or more leaves no trace of the empty start")
     # a genome run is on a fixed tree, so its complete tree is the input; a StreamedRun does not carry
     # one, so read it from `tree` there. The rest of the CLI's bookkeeping is identical either way.
     complete_tree = tree if streaming else result.complete_tree

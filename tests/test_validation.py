@@ -57,6 +57,11 @@ So each test here computes a quantity with a **closed form** and checks the run 
 - **correlated traits** come out at the ρ they were declared with. The null a comparative method is
   graded against is a run with the correlation switched off, so if the overlay were not reaching the
   draw, the signal and the null would be the same run;
+- a **burn-in** before the root leaves the genome at the equilibrium of a birth–death–immigration
+  process: the copy number of a present family on Fisher's logarithmic series with ratio
+  duplication/loss, and the number of present families Poisson with mean
+  origination · (1/duplication) · ln(loss/(loss − duplication)) — Kendall's and Fisher's results,
+  which a burn-in that stopped early, or that counted its rates per the wrong unit, would miss;
 - **a driven rate realises the multiplier it was declared with** — on the conditioned path, on the
   joint one, and on the sequence level, where it is not statistical at all: a species-phylogram
   branch is the driven rate *integrated* over the branch, so when the driver switches part-way along,
@@ -383,6 +388,42 @@ def test_duplication_transfer_and_loss_are_counted_per_copy():
         assert abs(_z(observed, rate * total)) < Z_MAX, (
             f"{kind}={rate}: {observed.mean():.2f} events against rate × gene-copy-time "
             f"= {rate * total:.2f} (ratio {observed.mean() / (rate * total):.4f})")
+
+
+def test_a_burn_in_reaches_the_logarithmic_series_and_the_poisson_family_count():
+    """The root genome a burn-in leaves (issue #473) is the stationary state of a linear birth–death
+    process with immigration: families arrive at rate ν (origination, per lineage), each copy
+    duplicates at λ and is lost at μ. Kendall (1948) and Fisher et al. (1943): with p = λ/μ, the copy
+    number of a family present at the root is logarithmic-series, ``P(k) = p^k / (k ln(1/(1−p)))``,
+    and the number of present families is Poisson with mean ``(ν/λ) ln(μ/(μ−λ))``. Both are read off
+    the genome at time 0 of a one-lineage tree, over replicates, with the cap off (a cap would cut
+    the series' tail). A burn-in that stopped short of equilibrium would leave too few families,
+    and one that counted duplication per lineage rather than per copy would miss the series."""
+    from zombi2.tree import Node, Tree
+    leaf = Tree({0: Node(0, None, 0.0, 1.0, (), "extant")}, 0)
+    nu, lam, mu, reps = 30.0, 0.2, 1.0, 40
+    burn_in = 20.0 / (mu - lam)                           # twenty forgetting times
+    p = lam / mu
+    expect_n = nu / lam * math.log(mu / (mu - lam))
+    series = {k: p ** k / (k * math.log(1.0 / (1.0 - p))) for k in (1, 2, 3)}
+    counts, sizes = [], Counter()
+    for seed in range(reps):
+        r = simulate_genomes_family(leaf, origination=nu, duplication=lam, loss=mu,
+                                    initial_families=0, burn_in=burn_in, max_family_size=None,
+                                    seed=seed)
+        by_family = Counter(c.family for c in r.initial_genome)
+        counts.append(len(by_family))
+        sizes.update(by_family.values())
+    mean = sum(counts) / reps
+    se = math.sqrt(expect_n / reps)                       # Poisson: the variance is the mean
+    assert abs(mean - expect_n) < 4 * se, (mean, expect_n)
+    var = sum((c - mean) ** 2 for c in counts) / (reps - 1)
+    assert 0.5 * expect_n < var < 2.0 * expect_n, (var, expect_n)    # Poisson, not over-dispersed
+    total = sum(sizes.values())
+    for k, expected in series.items():
+        observed = sizes[k] / total
+        se_k = math.sqrt(expected * (1 - expected) / total)
+        assert abs(observed - expected) < 4 * se_k, (k, observed, expected)
 
 
 def test_transfer_picks_its_recipient_uniformly():
