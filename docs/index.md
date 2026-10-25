@@ -50,6 +50,16 @@ sp = species.simulate_species_tree(
     n_extant = 20, seed = 1)                                # grow until 20 species survive
 ```
 
+## For an AI agent
+
+An agent that will use ZOMBI2 in your project starts from one file, which installs it and says how
+it is driven. Give the agent this line:
+
+> Fetch and follow the instructions at https://aadavin.github.io/zombi2/docs/agent-setup/prompt.txt to set me up for ZOMBI2.
+
+The same file is linked from [`llms.txt`](https://aadavin.github.io/zombi2/docs/llms.txt), the index
+language models look for.
+
 ## Where next
 
 - New here? Start with the [**Introduction**](guide/introduction.md), which tours the whole tool in one pass.

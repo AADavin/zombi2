@@ -23,6 +23,10 @@ lineage carries. Use it to generate benchmark datasets with known ground truth f
 pip install zombi2
 ```
 
+Working with an AI agent? Give it this line, and it sets itself up to use ZOMBI2 in your project:
+
+> Fetch and follow the instructions at https://aadavin.github.io/zombi2/docs/agent-setup/prompt.txt to set me up for ZOMBI2.
+
 ---
 
 ## Quickstart
