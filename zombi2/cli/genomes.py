@@ -126,7 +126,7 @@ _DEFAULT_INITIAL_FAMILIES = 100
 #: number here was never the number that applied.)
 _DEFAULT_MAX_FAMILY_SIZE = 10
 
-_NOT_IN_NUCLEOTIDE = (("initial_families", None), ("replacement", False),
+_NOT_IN_NUCLEOTIDE = (("initial_families", None), ("replacement", 0.0),
                       ("max_family_size", _DEFAULT_MAX_FAMILY_SIZE), ("burn_in", None))
 
 
@@ -183,8 +183,11 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                         "default), distance (closer relatives likelier) or Distance(decay=X) for "
                         "another decay, Clades({...}, Between({...})) to steer flow between named "
                         "clades, or a Recipients().weighted_by(driver, {...}) rule")
-    g.add_argument("--replacement", action="store_true",
-                   help="a transfer overwrites a homologous copy (replacing HGT)")
+    g.add_argument("--replacement", type=_probability, nargs="?", const=1.0, default=0.0,
+                   metavar="P",
+                   help="the probability that a transfer arriving where its family already has a "
+                        "copy overwrites one resident copy instead of being added beside it; "
+                        "--replacement alone is 1 (replacing HGT), no flag is 0 (additive)")
     g.add_argument("--self-transfer", action="store_true", dest="self_transfer",
                    help="allow a lineage to transfer to itself")
     g.add_argument("--initial-families", type=int, default=None, metavar="N",
@@ -409,6 +412,17 @@ def _driven_specs(args) -> tuple:
     """Every spec of this run that may name a driver: the rate flags above, plus ``--transfer-to``,
     which chooses who receives rather than setting a rate, but points at the same kind of file."""
     return (*(getattr(args, name) for name in _DRIVABLE_RATE_FLAGS), args.transfer_to)
+
+
+def _probability(text: str) -> float:
+    """The argparse ``type`` for ``--replacement``: a number in [0, 1]."""
+    try:
+        p = float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{text!r} is not a number; a probability in [0, 1]") from None
+    if not 0.0 <= p <= 1.0:
+        raise argparse.ArgumentTypeError(f"{p:g} is not a probability in [0, 1]")
+    return p
 
 
 def _stray(args, knobs) -> list[str]:

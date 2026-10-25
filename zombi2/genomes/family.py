@@ -125,6 +125,10 @@ class FamilyGenomesResult:
     #: through it. Keyed by node id, as ``node_genomes`` is. Empty when no rate varies among
     #: lineages.
     lineage_multipliers: "dict[int, dict[str, float]]" = field(default_factory=dict)
+    #: How the transfers that arrived where their family already had a copy went:
+    #: ``found_resident`` · ``replaced`` · ``added_beside`` (#476). ``None`` when ``replacement`` was
+    #: 0, when nothing was asked, and for a run read back from its files, which do not record it.
+    replacements: "dict[str, int] | None" = None
 
     def __repr__(self) -> str:
         # "0 nodes" beside a real tip count reads as a broken run; a reopened run that did not write
@@ -286,6 +290,9 @@ class FamilyGenomesResult:
             "resolution": "family",
             # one number per EVENT — the same thing a row of genome_events.tsv is
             "events": counted,
+            # the transfers that found a resident copy, and how they went, so the realised share of
+            # replacing ones can be read against the `replacement` probability (#476)
+            **({"transfers": self.replacements} if self.replacements is not None else {}),
             "families": {"born": len(born), "surviving": len(surviving),
                          "died_out": len(born) - len(surviving),
                          "named": len(self.family_names)},
@@ -628,6 +635,39 @@ def _lose_at(genome, j, node, t, events) -> None:
     genome[j] = genome[-1]
     genome.pop()
     events.append(GeneEdge(t, "loss", node.id, lost.family, lost.id))
+
+
+def resolve_replacement(replacement) -> float:
+    """``replacement`` as the probability that a transfer arriving where its family already has a
+    copy overwrites one resident copy (#476): a number in [0, 1]; ``True`` is 1 and ``False`` 0, the
+    two values it used to be. At 0 the arriving copy is always added beside the resident; at 1 it
+    always replaces one; between, one Bernoulli draw per such transfer decides."""
+    if isinstance(replacement, bool):
+        return 1.0 if replacement else 0.0
+    if not isinstance(replacement, (int, float)) or not 0.0 <= replacement <= 1.0:
+        raise ValueError(f"replacement is a probability in [0, 1] (True is 1, False is 0), got "
+                         f"{replacement!r}")
+    return float(replacement)
+
+
+class ReplacementTally:
+    """How the transfers that found a resident copy went (#476): ``found`` arrived in a genome that
+    already held the family, ``replaced`` of those overwrote a resident, the rest were added beside
+    it. Counted by the engine as it runs, because the log cannot tell an additive transfer beside a
+    resident from one into a genome without the family."""
+
+    __slots__ = ("found", "replaced")
+
+    def __init__(self, found: int = 0, replaced: int = 0) -> None:
+        self.found, self.replaced = found, replaced
+
+    def add(self, other: "ReplacementTally") -> None:
+        self.found += other.found
+        self.replaced += other.replaced
+
+    def counts(self) -> dict[str, int]:
+        return {"found_resident": self.found, "replaced": self.replaced,
+                "added_beside": self.found - self.replaced}
 
 
 def resolve_burn_in(burn_in, dup, los, t_root, *, where: str, has_drivers: bool, is_joint: bool,
@@ -1310,7 +1350,7 @@ class _LiveGeneContent:
 
 def _do_transfer(rng, tree, alive, gen, counts, kd, jd, t, events, new_copy,
                  transfer_to, replacement, self_transfer, depth, to_traj=None, cap=None,
-                 groups=None) -> tuple[int, int | None]:
+                 groups=None, tally=None) -> tuple[int, int | None]:
     """The copy ``jd`` of the donor lineage ``kd`` transfers to a contemporaneous recipient lineage.
     The donor is picked by the caller (uniformly across the copy pool, or weighted by lineage when
     the transfer rate is driven), the recipient by ``transfer_to``. Returns the change in total copy
@@ -1351,9 +1391,14 @@ def _do_transfer(rng, tree, alive, gen, counts, kd, jd, t, events, new_copy,
     gen[kd][jd] = cont
     delta = 1
     replaced = None
-    if replacement:
+    if replacement > 0.0:
         residents = [p for p, c in enumerate(rg) if c.family == fam and c.id != cont.id]
-        if residents:  # homologous overwrite; empty ⇒ additive fallback (the gene still arrives)
+        # a resident found: one Bernoulli draw with parameter `replacement` says whether the arriving
+        # copy overwrites one, drawn only strictly between 0 and 1, so a run at 1 is the run it was
+        if residents and (replacement >= 1.0 or float(rng.random()) < replacement):
+            if tally is not None:
+                tally.found += 1
+                tally.replaced += 1
             p = residents[int(rng.integers(len(residents)))]
             victim = rg[p]
             rg[p] = rg[-1]
@@ -1366,6 +1411,8 @@ def _do_transfer(rng, tree, alive, gen, counts, kd, jd, t, events, new_copy,
             events.append(GeneEdge(t, "loss", recipient, fam, replaced))
             counts.removed(kr, fam)
             delta = 0
+        elif residents and tally is not None:
+            tally.found += 1                       # added beside the resident
     rg.append(xfer)
     counts.added(kr, fam)
     events.append(GeneEdge(t, "transfer", donor, fam, cont.id, parent=src.id, donor=donor,
@@ -1377,7 +1424,7 @@ def _do_transfer(rng, tree, alive, gen, counts, kd, jd, t, events, new_copy,
 
 @without_cyclic_gc
 def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, origination=0.0,
-                            transfer_to="uniform", replacement=False, self_transfer=False,
+                            transfer_to="uniform", replacement=0.0, self_transfer=False,
                             initial_families=100, families=None, max_family_size=10, joint=False,
                             burn_in=None, seed=None, parallel=False, stream_to=None, outputs=None,
                             compact=False, bundle=None, progress=False,
@@ -1396,10 +1443,12 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     ``transfer_to`` — ``"uniform"`` (any other contemporaneous lineage), ``"distance"`` /
     ``Distance(decay=)`` (closer relatives likelier), ``Clades({...}, Between({...}))`` (weighted by
     the donor's and recipient's **named clade**, so transfer can run *between* two clades — see below),
-    or ``Recipients().weighted_by(driver, mapping)`` (weighted by an evolved value; see below). ``replacement=True``
-    overwrites a homologous
-    copy in the recipient (additive fallback if it has none); ``self_transfer=True`` lets a lineage
-    donate to itself. The root starts with ``initial_families`` families of one copy each, recorded
+    or ``Recipients().weighted_by(driver, mapping)`` (weighted by an evolved value; see below).
+    ``replacement`` is the probability, 0 to 1, that a copy arriving where its family already has a
+    copy overwrites one resident copy rather than being added beside it (one Bernoulli draw per such
+    transfer; a copy arriving where the family is absent is always added); ``True`` is 1 and
+    ``False`` 0. The summary reports how many transfers found a resident, replaced it or were added
+    beside it. ``self_transfer=True`` lets a lineage donate to itself. The root starts with ``initial_families`` families of one copy each, recorded
     as originations at the origin. ``families=[family("toxin")]`` additionally declares **named** families —
     each gets a normal (integer) family id, but its name is remembered in ``result.family_names`` so
     you can track a specific family (``result.has_family(node, "toxin")``); this is the handle a joint
@@ -1495,6 +1544,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     # otherwise repeat the whole run before dying at its own pool. See `refuse_worker_reentry`.
     refuse_worker_reentry(parallel)
     compact = compact_or_bundle(compact, bundle, "simulate_genomes_family")   # its 0.52.0 name
+    replacement = resolve_replacement(replacement)
     tree = as_tree(tree, level="genomes")
     dup = as_rate(duplication, default_scope=PerCopy)
     tra = as_rate(transfer, default_scope=PerCopy)
@@ -1751,6 +1801,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
             return result
 
     rng, seed = stream("genomes", seed)     # the genomes level's own stream
+    replacements = ReplacementTally() if replacement > 0.0 else None
 
     # The per-lineage multipliers this engine draws: one per species branch, drawn before any family
     # is minted, because they come from the tree, which exists before the run does. A run carrying
@@ -2176,7 +2227,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                             choice, choice_groups, choice_traj = own_choice
                     delta, kr = _do_transfer(rng, tree, alive, gen, counts, kd, jd, t, events,
                                              new_copy, choice, replacement, self_transfer,
-                                             depth, choice_traj, cap, choice_groups)
+                                             depth, choice_traj, cap, choice_groups, replacements)
                     total_copies += delta
                     if weights is not None and kr is not None:
                         weights.touched(kr)   # only the recipient's composition changed (see there)
@@ -2242,7 +2293,8 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     per_lineage_multipliers = (lineage_multipliers_of(lin_mult, tree.labels())
                                if any_lineage else {})
     return FamilyGenomesResult(tree, genomes, events, seed, named, module_map, initial_genome,
-                               cap, links, multipliers, per_lineage_multipliers)
+                               cap, links, multipliers, per_lineage_multipliers,
+                               replacements.counts() if replacements is not None else None)
 
 
 # --- process spec: a genome bundled but UNEXECUTED, for a joint model to grow with the tree --------

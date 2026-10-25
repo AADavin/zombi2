@@ -60,7 +60,7 @@ When a transfer event occurs, the copy that triggers the events is one of that f
 Three arguments are important for transfers:
 
 - **`transfer_to`**, who receives the copy. `"uniform"` (the default) picks any other contemporaneous lineage with equal chance; `"distance"` makes closer relatives likelier: a recipient at distance *d* from the donor gets weight exp(−decay · *d* / depth), the depth being the tree's mean root-to-tip time, so the same `decay` means the same thing on trees of different timescales. `"distance"` is `Distance(decay=1.0)`, and `Distance(decay=)` sets its own. A third rule, `Clades(...)`, weights recipients by **named clades of the tree**, described below.
-- **`replacement`**, what happens on arrival. By default the incoming copy is **additive**: the recipient simply gains a copy. With `replacement=True` it **overwrites** a copy of the same family already present, picked at random when the recipient holds several, and falls back to additive when it has none.
+- **`replacement`**, what happens on arrival where the recipient already holds a copy of the same family: a probability. By default (0) the incoming copy is **additive**: the recipient simply gains a copy. At 1 it **overwrites** one resident copy, picked at random when the recipient holds several. Between, each such transfer draws once: it replaces with probability `replacement` and is added beside the resident otherwise. A copy arriving where the family is absent is always added. `genome_summary.json` counts the transfers that found a resident, how many replaced it and how many were added beside it, so the realised share can be read against the probability. `replacement=True` still means 1.
 - **`self_transfer`**, whether a lineage may donate to itself. Off by default. With additive arrival the lineage gains a copy, so the gene content changes as it would under a duplication, but the event is recorded as a transfer. Under `replacement` the arrival never overwrites its own continuation: it displaces one of the lineage's *other* copies, or falls back to additive when there is none.
 
 Transfers can arrive **from a lineage that later goes extinct** [@szollosi2013lgtdead]. A genome run happens on the complete tree, dead branches included, so a gene can enter a survivor from a donor that leaves no other trace. That is the feature the software was originally named for: transfers from the dead, from zombie lineages.
@@ -135,6 +135,10 @@ zombi2 genomes out/ --duplication 0.2 --loss 0.25 --origination 0.5 --seed 1
 
 # horizontal transfer biased toward close relatives, overwriting resident copies
 zombi2 genomes out/ --transfer 0.5 --transfer-to distance --replacement \
+    --origination 0.4 --seed 3
+
+# the same, but a transfer that finds a resident copy replaces it only half of the time
+zombi2 genomes out/ --transfer 0.5 --transfer-to distance --replacement 0.5 \
     --origination 0.4 --seed 3
 
 # a root genome at equilibrium: 25 time units of origination, duplication and loss before the tree
