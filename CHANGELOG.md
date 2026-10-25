@@ -9,6 +9,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+
+- `replacement` is a probability, 0 to 1, instead of on or off: a transfer arriving where its family already has a copy overwrites one resident copy with that probability and is added beside it otherwise, one draw per transfer (per segment at the ordered resolution). `--replacement 0.5` on the command line; `--replacement` alone still means 1 and no flag 0, and `True` / `False` still work, so existing runs are byte-identical. `genome_summary.json` reports, under `transfers`, how many transfers found a resident copy, replaced it or were added beside it. The nucleotide resolution stays additive. (#476)
+
 ## [0.53.0] - 2026-10-24
 
 ### Added

@@ -74,9 +74,9 @@ from .chromosomes import (CHROMOSOME_EVENTS_HEADER, REARRANGEMENT_HEADER, Chromo
                           chromosome_child_branches, chromosome_event_rows, chromosome_events_tsv,
                           rearrangement_event_rows, rearrangement_events_tsv)
 from ..params.retired import check_no_retired_keywords
-from .family import (_FamilyCounts, _LiveGeneContent, live_target, resolve_burn_in,
+from .family import (_FamilyCounts, _LiveGeneContent, ReplacementTally, live_target, resolve_burn_in,
                      resolve_families, resolve_family_rates, resolve_family_transfer_to,
-                     resolve_live_drivers, resolve_max_family_size)
+                     resolve_live_drivers, resolve_max_family_size, resolve_replacement)
 from ._live import WeightedIndex, enter, retire, weighted_index, without_cyclic_gc
 from ._transfer import (mean_root_to_tip, prepare_transfer_to, recipient_index,
                         recipient_index_all, resolve_transfer_to)
@@ -315,6 +315,9 @@ class OrderedGenomesResult:
     #: in the order they were minted; ``write`` puts them in ``groups.tsv``. A unit is one copy of
     #: the group in one genome, so two genes with the same unit travelled together.
     grouped_genes: "tuple[tuple[str, int, int, int], ...]" = ()
+    #: How the transfers that arrived where their family already had a copy went:
+    #: ``found_resident`` · ``replaced`` · ``added_beside`` (#476); ``None`` at ``replacement=0``.
+    replacements: "dict[str, int] | None" = None
 
     def __repr__(self) -> str:
         return (f"OrderedGenomesResult({len(self.complete_tree.extant_leaves())} extant genomes, "
@@ -541,6 +544,7 @@ class OrderedGenomesResult:
             surviving=len({g.family for i in extant for c in self.node_genomes.get(i, ())
                            for g in c.genes}),
             named=len(self.family_names), family_names=self.family_names, extant=len(extant),
+            replacements=self.replacements,
             empty=sum(1 for i in extant if not any(c.genes for c in self.node_genomes.get(i, ()))),
             genes_per_genome=[sum(len(c.genes) for c in self.node_genomes.get(i, ())) for i in extant],
             chromosomes_per_genome=[len(self.node_genomes.get(i, ())) for i in extant],
@@ -592,7 +596,7 @@ def _initial_genome_tsv(initial_genome) -> str:
 
 def _ordered_summary(*, seed, events, born, surviving, named, extant, empty, genes_per_genome,
                      chromosomes_per_genome, rearrangements, chromosome_events,
-                     family_names=None) -> dict:
+                     family_names=None, replacements=None) -> dict:
     """The payload of ``genome_summary.json``, from the numbers it reports. One function, so a run
     kept in memory (`OrderedGenomesResult.summary`) and a streamed run (`_OrderedStream`) cannot report
     them differently. ``rearrangements`` and ``chromosome_events`` count records by kind."""
@@ -601,6 +605,7 @@ def _ordered_summary(*, seed, events, born, surviving, named, extant, empty, gen
         "seed": seed,
         "resolution": "ordered",
         "events": events,
+        **({"transfers": replacements} if replacements is not None else {}),
         # ``names`` is the join from a declared family's name to the id every table writes
         "families": {"born": born, "surviving": surviving, "died_out": born - surviving,
                      "named": named, "names": dict(sorted((family_names or {}).items()))},
@@ -885,7 +890,8 @@ class _OrderedStream:
                                    array.array("q", (held[f] for f in families)))
 
     def close(self, *, seed, links, initial_genome, named: int, family_multipliers,
-              lineage_multipliers, groups=None, grouped_genes=(), family_names=None) -> StreamedRun:
+              lineage_multipliers, groups=None, grouped_genes=(), family_names=None,
+              replacements=None) -> StreamedRun:
         """Write what is left, build the gene trees, and hand back the run's `StreamedRun`."""
         self.flush()
         for f in (self._events, self._rearrangement_file, self._chromosome_file, self._gene_order):
@@ -909,6 +915,7 @@ class _OrderedStream:
                 seed=seed, events=self._tally.counts(), born=self._born,
                 surviving=len(self._surviving), named=named, extant=len(self._extant),
                 family_names={name: fid for fid, name in (family_names or {}).items()},
+                replacements=replacements,
                 empty=self._empty, genes_per_genome=self._genes_per_genome,
                 chromosomes_per_genome=self._chromosomes_per_genome,
                 rearrangements=self._rearranged, chromosome_events=self._chromosome_kinds))
@@ -2105,7 +2112,7 @@ def _translocate(genome, ci, i, m, node, t, rearrangements, rng, inversion_proba
 def _do_transfer(rng, tree, alive, gen, counts, kd, cdi, jd, m, t, events, positions, new_gene,
                  transfer_to, replacement, self_transfer, depth, cap=None,
                  to_traj=None, groups=None, fam_choice=None, units=None, carry=None,
-                 whole=None) -> tuple[int, int | None]:
+                 whole=None, tally=None) -> tuple[int, int | None]:
     """The segment ``[jd, jd+m)`` on the donor's chromosome ``cdi`` transfers to a contemporaneous
     recipient chosen by ``transfer_to``: each gene ends → a continuation on the donor branch and a
     transferred copy on the recipient (a horizontal gene-tree edge). The run may wrap position 0 on a
@@ -2199,8 +2206,20 @@ def _do_transfer(rng, tree, alive, gen, counts, kd, cdi, jd, m, t, events, posit
                                    donor=donor, recipient=recipient))
     delta = m
     displaced: dict[int, int] = {}                      # arriving copy -> the resident it overwrote
-    if replacement:
+    replacing = False
+    if replacement > 0.0:
         cont_ids = {c.id for c in conts}                # self-transfer: never overwrite our own conts
+        # One Bernoulli draw for the whole segment (#476): the transfer replaces, for every arriving
+        # copy that finds a resident, or it is additive as a whole. Drawn only strictly between 0
+        # and 1, and only when some copy finds a resident, so a run at 1 is the run it was.
+        found = any(c.family == x.family and c.id not in cont_ids
+                    for x in xfers for ch in rgenome for c in ch.genes)
+        if found:
+            replacing = replacement >= 1.0 or float(rng.random()) < replacement
+            if tally is not None:
+                tally.found += 1
+                tally.replaced += replacing
+    if replacing:
         for x in xfers:                                 # each arriving copy may displace a homolog
             residents = [(ci, p) for ci, ch in enumerate(rgenome) for p, c in enumerate(ch.genes)
                          if c.family == x.family and c.id not in cont_ids]
@@ -2461,7 +2480,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                              duplication_extent=None, loss_extent=None, transfer_extent=None,
                              inversion_extent=None, transposition_extent=None,
                              translocation_extent=None, inversion_probability=0.0,
-                             transfer_to="uniform", replacement=False, self_transfer=False,
+                             transfer_to="uniform", replacement=0.0, self_transfer=False,
                              initial_families=100, families=None, groups=None, joint=False,
                              max_family_size=10, burn_in=None, seed=None, stream_to=None, outputs=None,
                              compact=False, bundle=None, progress=False,
@@ -2494,7 +2513,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     run starts with ``chromosomes`` chromosomes of the given ``topology``, across which the
     ``initial_families`` founding genes are dealt **round-robin**; ``families=[family("toxin")]`` additionally
     declares **named** families (remembered in ``result.family_names`` for ``result.has_family(node,
-    "toxin")``), as in the family core; ``replacement`` / ``self_transfer`` behave as in the family
+    "toxin")``), as in the family core; ``replacement`` (a probability, one draw per transfer for
+    the whole segment) and ``self_transfer`` behave as in the family
     core. So does ``transfer_to``, which **chooses who receives** — ``"uniform"``,
     ``"distance"`` / ``Distance(decay=)`` (closer relatives likelier), ``Clades({...}, Between({...}))``
     (weight by the donor's and recipient's named clade) or ``Recipients().weighted_by(driver, mapping)`` (weight by
@@ -2599,6 +2619,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     """
     compact = compact_or_bundle(compact, bundle, "simulate_genomes_ordered")   # its 0.52.0 name
     tree = as_tree(tree, level="genomes")
+    replacement = resolve_replacement(replacement)
     if outputs is not None and stream_to is None:
         raise ValueError(
             "outputs applies to a streamed run (stream_to=DIR), which writes the files itself; for an "
@@ -2758,11 +2779,11 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     # families that travel as one segment (#468): checked against the declared families, and
     # refused beside `replacement`, where a displaced resident would take one gene out of a unit
     group_map = resolve_groups(groups, declared, started_named)
-    if group_map and replacement:
+    if group_map and replacement > 0.0:
         raise ValueError(
-            "replacement=True is not built for a run with groups: a transferred copy displaces one "
-            "resident gene, which would take that gene out of its group. Run without replacement, "
-            "or without groups.")
+            "replacement above 0 is not built for a run with groups: a transferred copy that replaces "
+            "one resident gene would take that gene out of its group. Run with replacement=0, or "
+            "without groups.")
     # units exist for the adjacent groups alone; a group with adjacent=False is a package for
     # transfers and nothing positional
     units = _Units(group_map) if any(g.adjacent for g in group_map.values()) else None
@@ -2884,6 +2905,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         fam_choice_prepared[i] = same
 
     rng, seed = stream("genomes", seed)     # own stream, and a drawn seed if none was given
+    replacements = ReplacementTally() if replacement > 0.0 else None
 
     # Per-lineage multipliers: one per species branch, shared by every family that passes through it
     # (`zombi2.genomes.multipliers`). Drawn before any family is minted, because they come from the
@@ -3559,7 +3581,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                                                  events, event_positions, new_gene, transfer_to,
                                                  replacement, self_transfer, depth, cap,
                                                  to_traj, group_of, fam_choice, units, carry,
-                                                 whole_now)
+                                                 whole_now, replacements)
                         total_copies += delta
                         if kr is not None:   # the recipient's gene content changed, the donor's did not
                             rows.touched(kr, gen[kr])
@@ -3725,10 +3747,12 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                              family_multipliers=multipliers,
                              lineage_multipliers=per_lineage_multipliers,
                              groups=group_members, grouped_genes=grouped_genes,
-                             family_names={fid: name for name, fid in named.items()})
+                             family_names={fid: name for name, fid in named.items()},
+                             replacements=replacements.counts() if replacements is not None else None)
     return OrderedGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed,
                                 named, module_map, event_positions, initial_genome, links,
-                                multipliers, per_lineage_multipliers, group_members, grouped_genes)
+                                multipliers, per_lineage_multipliers, group_members, grouped_genes,
+                                replacements.counts() if replacements is not None else None)
 
 
 __all__ = ["simulate_genomes_ordered", "OrderedGenomesResult", "Gene", "Chromosome",

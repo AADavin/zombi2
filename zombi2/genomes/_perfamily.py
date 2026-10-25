@@ -193,7 +193,7 @@ class FamilyContext:
     tra: object
     los: object
     transfer_to: object
-    replacement: bool
+    replacement: float
     self_transfer: bool
     cap: "int | None"
     depth: float
@@ -296,7 +296,7 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
     run); ``copy_id_base`` offsets the minted copy ids so several families' logs concatenate without a
     rewrite (the parallel engine passes ``family << 30``). Mirrors the serial loop's inner event
     handling, scoped to this family's footprint (the lineages it occupies)."""
-    from .family import GeneCopy, _at_cap, _duplicate, _lose_at   # package helpers; no cycle
+    from .family import GeneCopy, ReplacementTally, _at_cap, _duplicate, _lose_at   # package helpers; no cycle
 
     tree, dup, tra, los = ctx.tree, ctx.dup, ctx.tra, ctx.los
     transfer_to, replacement, self_transfer = ctx.transfer_to, ctx.replacement, ctx.self_transfer
@@ -339,6 +339,7 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
     node_genomes: dict[int, list] = {}
     base = copy_id_base
     counter = 0
+    tally = ReplacementTally() if replacement > 0.0 else None
 
     def new_copy(fam: int) -> "GeneCopy":
         nonlocal counter
@@ -444,7 +445,8 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
                     kd = None if w_tra is None else weighted_index(rng, w_tra, r_tra)
                     total += _family_transfer(rng, tree, contemp, alive, gen, pos, heap, total, t,
                                               events, new_copy, transfer_to, replacement,
-                                              self_transfer, depth, cap, to_traj, group_of, kd)
+                                              self_transfer, depth, cap, to_traj, group_of, kd,
+                                              tally)
                 continue
 
         # advance to the horizon: a structural event (an occupied lineage ends) or a rate breakpoint
@@ -475,7 +477,7 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
         else:
             t = horizon                                     # a skyline or transfer-window breakpoint
 
-    return events, node_genomes, mult
+    return events, node_genomes, mult, (tally.found, tally.replaced) if tally is not None else (0, 0)
 
 
 def _evolve_one(family, lineage, birth_time, seedseq):
@@ -489,8 +491,8 @@ def _evolve_one(family, lineage, birth_time, seedseq):
 def _evolve_family(task):
     """Collect-mode worker: evolve one family and hand its log back for the in-memory merge."""
     fid, birth_lineage, birth_time, seedseq = task
-    events, node_genomes, multipliers = _evolve_one(fid, birth_lineage, birth_time, seedseq)
-    return fid, events, node_genomes, multipliers
+    events, node_genomes, multipliers, replaced = _evolve_one(fid, birth_lineage, birth_time, seedseq)
+    return fid, events, node_genomes, multipliers, replaced
 
 
 def _pick_in(rng, gen, total, weights, weight_total):
@@ -511,7 +513,7 @@ def _pick_in(rng, gen, total, weights, weight_total):
 
 def _family_transfer(rng, tree, contemp, alive, gen, pos, heap, total, t, events, new_copy,
                      transfer_to, replacement, self_transfer, depth, cap,
-                     to_traj=None, group_of=None, donor_k=None) -> int:
+                     to_traj=None, group_of=None, donor_k=None, tally=None) -> int:
     """One transfer for the current family. Mirrors `_do_transfer()` exactly (donor
     continuation re-ids, optional homologous replacement, the cap thinning) but over this family's
     footprint: the recipient is a contemporaneous lineage picked by ``transfer_to``, and a recipient
@@ -554,15 +556,22 @@ def _family_transfer(rng, tree, contemp, alive, gen, pos, heap, total, t, events
         heapq.heappush(heap, (tree.nodes[recipient].end_time, recipient))
         rg = gen[pos[recipient]]
     replaced = None
-    if replacement:
+    if replacement > 0.0:
         residents = [p for p, cpy in enumerate(rg) if cpy.family == fam and cpy.id != cont.id]
-        if residents:                                      # homologous overwrite (else additive)
+        # a resident found: one Bernoulli draw with parameter `replacement`, drawn only strictly
+        # between 0 and 1, so a run at 1 is the run it was (see family._do_transfer)
+        if residents and (replacement >= 1.0 or float(rng.random()) < replacement):
+            if tally is not None:
+                tally.found += 1
+                tally.replaced += 1
             p = residents[int(rng.integers(len(residents)))]
             victim = rg[p]
             rg[p] = rg[-1]; rg.pop()
             replaced = victim.id      # named on the transfer, so the log writes them as one event
             events.append(GeneEdge(t, "loss", recipient, fam, replaced))
             delta = 0
+        elif residents and tally is not None:
+            tally.found += 1                       # added beside the resident
     rg.append(xfer)
     events.append(GeneEdge(t, "transfer", donor, fam, cont.id, parent=src.id, donor=donor,
                         replaced=replaced))
@@ -643,7 +652,7 @@ def _stream_chunk(task):
     n_events = 0
     try:
         for (fid, lineage, birth_time, seedseq) in family_list:
-            events, node_genomes, multipliers = _evolve_one(fid, lineage, birth_time, seedseq)
+            events, node_genomes, multipliers, _replaced = _evolve_one(fid, lineage, birth_time, seedseq)
             n_events += len(events)
             if want["family_multipliers"]:
                 files["family_multipliers"].write(multipliers_row(fid, multipliers, FAMILY_TARGETS) + "\n")
@@ -688,7 +697,7 @@ def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, s
     Copy ids are global from the start (``fid << SHIFT`` + local), so the merge and the streamed shards
     both just concatenate — no id rewrite, no run-sized bottleneck beyond the (serial) in-memory merge
     the streaming path exists to avoid."""
-    from .family import GeneCopy, FamilyGenomesResult
+    from .family import GeneCopy, FamilyGenomesResult, ReplacementTally
     from .multipliers import FAMILY_TARGETS, draw_lineage_multipliers, lineage_multipliers_of
 
     reason = _unsupported_reason(dup, tra, los, org, transfer_to)
@@ -761,15 +770,18 @@ def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, s
     # node snapshots stitch together with no rewrite. Every node appears, empty where no family reached it.
     events: list[GeneEdge] = []
     genomes: dict[int, list] = {i: [] for i in tree.nodes}
-    for _fid, fam_events, node_genomes, _multipliers in results:
+    replacements = ReplacementTally()
+    for _fid, fam_events, node_genomes, _multipliers, (found, replaced) in results:
         events.extend(fam_events)
+        replacements.found += found
+        replacements.replaced += replaced
         for node_id, copies in node_genomes.items():
             genomes[node_id].extend(copies)
     events.sort(key=lambda e: e.time)                      # a chronological log, like the serial one
     genomes_final = {i: tuple(g) for i, g in genomes.items()}
     # each family's drawn multipliers, kept when some rate varies among families, as the serial engine does
     multipliers = ({fid: {target: float(m[target]) for target in FAMILY_TARGETS}
-                    for fid, _e, _g, m in sorted(results, key=lambda r: r[0])}
+                    for fid, _e, _g, m, _r in sorted(results, key=lambda r: r[0])}
                    if any(ctx.fam_by.values()) else {})
 
     # the genome the run started with: every initial and named family's founding gene (its base id),
@@ -781,7 +793,8 @@ def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, s
                                ctx.cap if hasattr(ctx, 'cap') else None,
                                family_multipliers=multipliers,
                                lineage_multipliers=(lineage_multipliers_of(lin_mult, tree.labels())
-                                                    if lin_mult else {}))
+                                                    if lin_mult else {}),
+                               replacements=replacements.counts() if ctx.replacement > 0.0 else None)
 
 
 def _run_streaming(tree, ctx, per_family, n_families, workers, seed, initial_families, family_names,
