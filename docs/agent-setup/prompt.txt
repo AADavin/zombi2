@@ -1,0 +1,179 @@
+These are the setup instructions for an AI agent that will use ZOMBI2 in a project: a simulator of
+the evolution of species trees, genomes, sequences and traits, which records the true history behind
+every dataset it makes. Read all of it before your first command. Everything here is checked against
+the released code by ZOMBI2's own test suite, and the live copy is
+https://aadavin.github.io/zombi2/docs/agent-setup/prompt.txt.
+
+Do the install yourself. Ask the user before writing into a directory that is not the one they gave
+you. Never guess a flag or a file name: every one you need is here or in the manual this file links.
+
+----------------------------------------------------------------------------------------------------
+1. Install and check
+----------------------------------------------------------------------------------------------------
+
+ZOMBI2 is pure Python, 3.10 or newer, with numpy as its only required dependency.
+
+    pip install zombi2
+    zombi2 --version
+
+If the user's project has a virtual environment, install into it. The command is `zombi2`; the
+package is `zombi2`. Version 0.53.0 or later is what this file describes; `pip install -U zombi2`
+if `--version` says less.
+
+----------------------------------------------------------------------------------------------------
+2. What ZOMBI2 is, in its own words
+----------------------------------------------------------------------------------------------------
+
+Four levels, always named with these words, in this order: Species, Genomes, Sequences, Traits.
+Species, genomes and sequences are a chain: a genome lives on the species tree, a sequence lives
+inside a gene. A trait lives on the species tree on its own. One command per level, and every level
+after the first takes the tree from a run directory it shares with the others:
+
+    zombi2 species   out/ --birth 1.0 --death 0.3 --n-extant 20 --seed 1
+    zombi2 genomes   out/ --duplication 0.2 --transfer 0.1 --loss 0.25 --origination 0.5 --seed 42
+    zombi2 sequences out/ --model hky85 --length 1000 --divergence 0.2 --seed 1
+    zombi2 traits    out/ --kind continuous --rate 1.0 --seed 1
+
+One run accumulates in one directory. Each command rewrites `out/run.zombi2`, a one-page report of
+the whole run with a TO REPRODUCE section holding the exact commands: open it first, and show it to
+the user when they ask what a run did.
+
+Two things ZOMBI2 keeps that most simulators drop. The **complete** tree holds every lineage that
+ever lived, extinct ones included, and genomes evolve on all of them, so a transfer can come from a
+lineage that later died; the **extant** tree is the survivors. Every file names a lineage `n<id>`,
+or `e<id>` once it went extinct, and a gene copy `n<species>_g<copy>`.
+
+Two levels can run one after the other, with the second reading the first (a **conditioned** run:
+a trait sets a gene-loss rate), or together in one pass when neither can go first (a **joint** run:
+gene content drives speciation, `zombi2 joint`). Do not call either "coevolution" or "coupling" in
+what you write for the user; ZOMBI2 says conditioned and joint.
+
+----------------------------------------------------------------------------------------------------
+3. Rates: one grammar, three places
+----------------------------------------------------------------------------------------------------
+
+A bare number is a rate on its natural scope: `--duplication 0.2` is per gene copy, `--origination
+0.5` per lineage, `--birth 1.0` per lineage. A rate that varies is written in one form, the same in
+Python, on the command line and in a `--params` TOML file: a scope wrapped around a base, with verbs
+chained on. On the command line, quote it.
+
+    --birth "PerLineage(1.0).changing_at({0: 1.0, 3: 0.33})"
+    --loss  "PerCopy(0.25).scaled_by('out/traits/trait_events.tsv', {'aquatic': 4.0, 'land': 1.0})"
+    --substitution "PerSite(1.0).varying_among('lineages', LogNormal(0.0, 0.3))"
+
+The verbs: `changing_at` (a schedule in time), `varying_among` (a factor drawn per family, lineage
+or site), `scaled_by` (a driver multiplies the rate), `set_by` (a driver replaces it), and on
+`--transfer-to`, `weighted_by` (a driver weights who receives). The scopes: `PerLineage`, `PerCopy`,
+`PerSite`, `PerChromosome`, `Global`. A level refuses a modifier it cannot honour; it never ignores
+one. The full grammar is https://aadavin.github.io/zombi2/docs/rates/.
+
+----------------------------------------------------------------------------------------------------
+4. The commands, one example each
+----------------------------------------------------------------------------------------------------
+
+Species: a dated birth-death tree. `--n-extant N` stops at N survivors, `--total-time T` runs to a
+time; `--sampling 0.5` observes half the survivors, `--mass-extinction 3 0.75` kills three quarters
+at time 3.
+
+    zombi2 species out/ --birth 1.0 --death 0.4 --total-time 5 --mass-extinction 3 0.75 --sampling 0.5 --seed 2
+
+Genomes, at three resolutions. `family` (the default) is a multiset of gene families evolving by
+duplication, transfer, loss and origination. `ordered` adds position and orientation on chromosomes,
+with inversions, transpositions and translocations, and chromosome fission and fusion. `nucleotide`
+adds the DNA itself, from a length or from a GFF and FASTA of a real genome.
+
+    zombi2 genomes out/ --transfer 0.5 --transfer-to distance --replacement --origination 0.4 --seed 3
+    zombi2 genomes out/ --resolution ordered --duplication 0.2 --loss 0.2 --origination 0.5 --inversion 0.3 --chromosomes 3 --seed 1
+    zombi2 genomes out/ --resolution nucleotide --root-length 5000 --genes 6 --gene-length 300 --inversion 1.0 --inversion-extent 400 --seed 1
+    zombi2 genomes out/ --origination 20 --duplication 0.2 --loss 1.0 --initial-families 0 --burn-in 25 --seed 1
+
+The last line is a burn-in: the root genome grows on one lineage before the tree, so it holds
+families of many ages instead of `--initial-families` of the same age.
+
+Sequences, down each gene tree of a genomes run: nucleotide models jc69, k80, hky85, gtr and
+protein models poisson, jtt, dayhoff, wag, lg; indels; site rate classes; relaxed clocks.
+
+    zombi2 sequences seqs/ --from out/ --model gtr --frequencies 0.3 0.2 0.2 0.3 --seed 1 --write alignments phylograms species_phylogram summary ancestral
+
+Traits, along the species tree: `continuous` (Brownian motion, Ornstein-Uhlenbeck) or `discrete`
+(a Markov chain over named states). A discrete run writes `trait_events.tsv`, the file a conditioned
+run reads as its driver.
+
+    zombi2 traits out/ --kind discrete --states cave,surface --switch 0.1 --seed 1
+    zombi2 traits out/ --kind discrete --name diet --states plant,fish --seed 2 --switch "PerLineage(0.2).scaled_by('out/traits/trait_events.tsv', {'cave': 5.0, 'surface': 1.0})"
+
+Joint, one pass that grows the tree and the level driving it:
+
+    zombi2 joint out/ --death 0.2 --states small,large --switch 0.3 --n-extant 100 --seed 1 --birth "PerLineage(1.0).scaled_by('trait', {'small': 1.0, 'large': 3.0})"
+
+Tools, reading a finished run: `zombi2 tools format out/ --format homology` (or markers, recphylo),
+`zombi2 tools tree` (prune, rescale, RED, gamma), `zombi2 tools treedist`, `zombi2 tools compact`.
+
+Every command takes `--seed`; always pass one, and record it for the user, since the same seed
+gives byte-identical output on a platform. `zombi2 <command> -h` lists every flag with its default.
+
+----------------------------------------------------------------------------------------------------
+5. What a run writes, and how to read it
+----------------------------------------------------------------------------------------------------
+
+    out/run.zombi2                      the report; read this first
+    out/species/species_complete.nwk    every lineage, extinct ones included; _extant.nwk the survivors
+    out/species/species_events.tsv      speciations and extinctions, with times
+    out/genomes/genome_events.tsv       the gene genealogy: one row per event, one per family it touched
+    out/genomes/genomes.tsv             gene content of every node (family); gene_order.tsv (ordered)
+    out/genomes/profiles.tsv            family x extant species copy counts
+    out/genomes/gene_trees/             gene_tree_fam<f>_complete.nwk and _extant.nwk, one pair per family
+    out/genomes/genome_summary.json     counts, and the declared family names mapped to their ids
+    out/sequences/alignments/           fam<f>.fasta; phylograms/ the trees in substitutions per site
+    out/traits/trait_values.tsv         the trait at every node; trait_events.tsv the state changes
+
+Tables are TSV with a header; read columns by name, never by position, since a later version may
+add a column at the end. Trees are Newick with branch lengths in time, except the phylograms. The
+full list, one table per level, is https://aadavin.github.io/zombi2/docs/output-files/.
+
+From Python the same runs are function calls with the same names as the flags, and the result holds
+the files' content as objects:
+
+    from zombi2 import species, genomes
+    sp = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
+    g = genomes.simulate_genomes_family(sp, duplication=0.2, transfer=0.1, loss=0.25,
+                                        origination=0.5, initial_families=20, seed=42)
+    observed = g.genomes            # the extant genomes, keyed by tip name
+    trees = g.gene_trees            # {family id: its true gene tree}
+    g.write("out")                  # the same files the command line writes
+
+`zombi2.genomes.read_run("out")` reopens a written genomes run. The API reference is
+https://aadavin.github.io/zombi2/docs/api/.
+
+----------------------------------------------------------------------------------------------------
+6. Things that go wrong, and what they mean
+----------------------------------------------------------------------------------------------------
+
+- Nothing is transferred while only one lineage is alive. A tree's root branch, the stem, is such a
+  time, so with a loss rate a family can die there before the first split. Start the genomes at the
+  first split when that matters: in Python `zombi2.tree.with_stem(tree, 0.0)`.
+- A rate counts starts, not hits. With `--duplication-extent 3` at the ordered resolution a gene is
+  copied about three times as often as the rate says, because any segment covering it copies it.
+- `--max-family-size` (default 10) caps copies of one family in one genome. The command warns when it
+  bound. For a study of copy-number distributions, pass `--max-family-size none`.
+- Per copy against per lineage: a per-copy rate grows with the genome, a per-lineage one is a fixed
+  budget. The default scope of each flag is in its help.
+- A driver's states must occur: a mapping whose states never appear in the driver is refused, not
+  silently ignored, and so is a modifier a level does not take.
+- Family names against ids: tables write family ids; `genome_summary.json` maps a declared name to
+  its id under `families.names`.
+- An empty genome at every tip means the loss rate ate everything; the command says so.
+
+----------------------------------------------------------------------------------------------------
+7. Where to read more
+----------------------------------------------------------------------------------------------------
+
+The manual, eight chapters and three appendices, with every example run as a test:
+https://aadavin.github.io/zombi2/docs/guide/introduction/
+The gallery of worked figures with their code: https://aadavin.github.io/zombi2/gallery.html
+Worked analyses with scripts, seeds and reports: https://github.com/AADavin/zombi2/tree/main/analyses
+The repository, issues welcome from agents and people alike: https://github.com/AADavin/zombi2
+Cite: Davín, A. A. (2026). ZOMBI2. Zenodo. https://doi.org/10.5281/zenodo.23168059
+
+When this file and the installed version disagree, `zombi2 <command> -h` is right, and say so in a
+GitHub issue.

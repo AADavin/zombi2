@@ -1,0 +1,29 @@
+# ZOMBI2
+
+> ZOMBI2 simulates the evolution of species trees, genomes, sequences and traits, each on its own,
+> conditioned on another, or jointly, and records the true history behind every dataset. Pure
+> Python, `pip install zombi2`, MIT.
+
+An agent that will use ZOMBI2 in a project starts here, one file that installs it and says how it is
+driven: https://aadavin.github.io/zombi2/docs/agent-setup/prompt.txt
+
+## Manual
+
+- [Introduction](https://aadavin.github.io/zombi2/docs/guide/introduction/)
+- [Species trees](https://aadavin.github.io/zombi2/docs/guide/species-trees/)
+- [Genomes I: gene families](https://aadavin.github.io/zombi2/docs/guide/genomes/)
+- [Genomes II: ordered](https://aadavin.github.io/zombi2/docs/guide/genomes-ordered/)
+- [Genomes III: nucleotide](https://aadavin.github.io/zombi2/docs/guide/genomes-nucleotide/)
+- [Sequences](https://aadavin.github.io/zombi2/docs/guide/sequences/)
+- [Traits](https://aadavin.github.io/zombi2/docs/guide/traits/)
+- [Dependent runs](https://aadavin.github.io/zombi2/docs/guide/conditioning/)
+- [The rate grammar](https://aadavin.github.io/zombi2/docs/rates/)
+- [Output files](https://aadavin.github.io/zombi2/docs/output-files/)
+- [Tools that read a run](https://aadavin.github.io/zombi2/docs/tools/)
+
+## Reference
+
+- [Python API](https://aadavin.github.io/zombi2/docs/api/)
+- [Gallery, every figure with its code](https://aadavin.github.io/zombi2/gallery.html)
+- [Repository](https://github.com/AADavin/zombi2)
+- [Cite: Zenodo DOI 10.5281/zenodo.23168059](https://doi.org/10.5281/zenodo.23168059)
