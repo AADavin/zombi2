@@ -52,7 +52,7 @@ def test_the_prompt_exists_and_names_the_version_that_is_installed():
     import zombi2
     text = PROMPT.read_text(encoding="utf-8")
     assert "pip install zombi2" in text
-    stated = re.search(r"Version (\d+\.\d+\.\d+) or later", text)
+    stated = re.search(r"version (\d+\.\d+\.\d+) or later", text, re.IGNORECASE)
     assert stated, "the prompt says which version it describes"
     assert tuple(map(int, stated.group(1).split("."))) <= tuple(map(int, zombi2.__version__.split(".")[:3]))
 
@@ -98,7 +98,7 @@ def test_the_python_in_the_prompt_runs(tmp_path, monkeypatch):
 def test_every_output_file_the_prompt_names_is_in_appendix_b():
     appendix = APPENDIX_B.read_text(encoding="utf-8")
     text = PROMPT.read_text(encoding="utf-8")
-    section = text.split("5. What a run writes")[1].split("From Python")[0]
+    section = text.split("5. What a run writes")[1].split("6. Things that go wrong")[0]
     names = set(re.findall(r"[A-Za-z_<>]+\.(?:tsv|nwk|json|fasta|zombi2)", section))
     names |= {"gene_tree_fam<f>_complete.nwk"}
     missing = [n for n in names if n.replace("<f>", "<f>") not in appendix]
