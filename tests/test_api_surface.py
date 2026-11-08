@@ -160,6 +160,7 @@ _VIA_CONSTRUCTOR = {
     "switch": "zombi2.traits:discrete",
     "start": "zombi2.traits:discrete",
     "at-speciation": "zombi2.traits:discrete",
+    "stem": "zombi2.species:add_hidden_lineages",          # the species command's --sampled-tree mode
 }
 
 #: The one flag whose name deliberately differs, and why: it is `action="append"`, so each use names
@@ -168,7 +169,9 @@ _VIA_CONSTRUCTOR = {
 _PLURAL = {"mass-extinction": ("zombi2.species:simulate_species_tree", "mass_extinctions"),
            # the flag takes a list of names; Python declares each family, which can also
            # carry its rates, its origin and its group — so the two are not the same word
-           "family-names": ("zombi2.genomes:family", "name")}
+           "family-names": ("zombi2.genomes:family", "name"),
+           # the flag takes a file; the function takes the tree read from it (#480)
+           "sampled-tree": ("zombi2.species:add_hidden_lineages", "sampled")}
 
 
 def _params_of(path: str) -> set:
