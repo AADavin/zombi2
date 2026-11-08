@@ -89,6 +89,7 @@ The modifiers are:
 | `varying_among('lineages', Drift(...))` | Is **inherited from the parent lineage and nudged at each split**, so the rate drifts gradually down the tree and close relatives keep similar rates. |
 | `varying_among('lineages', ...)` | Is an **independent draw for each lineage**, with no memory of its parent, so nearby branches are no more alike than distant ones. |
 | `varying_among('families', ...)` | Is an **independent draw for each gene family**, so one family is prone to transfer and another is not, whatever lineage either sits in. |
+| `varying_among(kind, {...})` | Maps each family's **shared category** to this rate's multiplier, so several rates can respond differently to the same category. |
 | `scaled_by(driver, mapping)` | **Depends on an evolved value**: the factor is looked up from a driver's state, either another level or another run of the same one, which is how one thing conditions another (Chapter 8). |
 | `set_by(driver, mapping)` | **Replaces the base** instead of multiplying it: the mapping gives the rate itself, in the rate's own units, so nothing is written in front of it. It takes a driver just as `scaled_by` does, the scope still applies, and a rate carries one. |
 

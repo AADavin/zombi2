@@ -62,8 +62,21 @@ VARYING_AMONG = "varying_among"
 CHANGING_AT = "changing_at"
 
 
+def _category_value(m, rng, shared) -> float:
+    """A `Category` modifier's value: its law draws the unit's category once, shared under the
+    **law's** identity among every rate reading that law (#478), and the modifier reads its own
+    multiplier for it. Duck-typed on ``draw_category``, so this module needs no import of the
+    grammar."""
+    key = ("category", id(m.law))
+    if shared is None:
+        return m.factor_for(m.draw_category(rng))
+    if key not in shared:
+        shared[key] = m.draw_category(rng)
+    return m.factor_for(shared[key])
+
+
 def values_at_birth(mods: "tuple[Modifier, ...]", rng,
-                    shared: "dict[int, float] | None" = None) -> tuple[float, ...]:
+                    shared: "dict[Any, Any] | None" = None) -> tuple[float, ...]:
     """The value a newly created unit carries, one per modifier, in written order.
 
     An `INHERITED` value starts from its own beginning (`Inherited.initial`); a `DRAWN` one is drawn.
@@ -85,6 +98,9 @@ def values_at_birth(mods: "tuple[Modifier, ...]", rng,
     inherited value has to perturb its parent's own number rather than a product."""
     out = []
     for m in mods:
+        if hasattr(m, "draw_category"):
+            out.append(_category_value(m, rng, shared))
+            continue
         key = id(m)
         if shared is None or key not in shared:
             value = m.initial() if m.reads and m.reads[0] == INHERITED else m.draw(rng)
@@ -96,13 +112,22 @@ def values_at_birth(mods: "tuple[Modifier, ...]", rng,
     return tuple(out)
 
 
+def drawn_categories(shared: "dict[Any, Any]") -> list[str]:
+    """The categories a unit drew, from the ``shared`` cache `values_at_birth` filled for it, in the
+    order the laws were met — one per `Categorical` law the unit's rates read."""
+    return [v for k, v in shared.items() if isinstance(k, tuple) and k[0] == "category"]
+
+
 def values_at_split(mods: "tuple[Modifier, ...]", parent_values: tuple[float, ...], rng,
-                    shared: "dict[int, float] | None" = None) -> tuple[float, ...]:
+                    shared: "dict[Any, Any] | None" = None) -> tuple[float, ...]:
     """A daughter's carried values: its parent's, perturbed (`INHERITED`), or a fresh independent
     draw that ignores the parent (`DRAWN`). That one line is the whole autocorrelated / uncorrelated
     split (SPEC §5). ``shared`` works as in `values_at_birth`."""
     out = []
     for i, m in enumerate(mods):
+        if hasattr(m, "draw_category"):
+            out.append(_category_value(m, rng, shared))
+            continue
         key = id(m)
         if shared is None or key not in shared:
             value = (m.descend(parent_values[i], rng)

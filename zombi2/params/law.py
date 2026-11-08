@@ -253,10 +253,144 @@ class Drawn(Modifier):
         return hash((Drawn, self.unit, self.dist))
 
 
-_WRITTEN_AS.update({Drawn: VARYING_AMONG, Inherited: VARYING_AMONG})
+@dataclass(frozen=True)
+class Categorical:
+    """A **law** for `Random`: each unit draws one **category**, by weight, and keeps it (#478)::
+
+        kind = Random('families', Categorical({"stable": 0.1, "mobile": 0.9}))
+        duplication = PerCopy(0.05).varying_among(kind, {"stable": 0.2, "mobile": 1.1})
+        transfer    = PerCopy(0.15).varying_among(kind, {"stable": 0.05, "mobile": 1.1})
+        loss        = PerCopy(0.5).varying_among(kind, {"stable": 0.05, "mobile": 1.1})
+
+    ``weights`` gives each category's weight; they are normalised to sum to 1. The law draws the
+    category; each rate then gives its own multiplier per category, in the table it reads the draw
+    with, and those multipliers are normalised to mean 1 under the weights, so the base stays the
+    average rate as it does for every drawn multiplier. One law object read by several rates is one
+    category per unit, which is how "a family that is rarely lost is also rarely transferred" is
+    said; the same law on one rate alone needs no name and is written in the text form too.
+    """
+
+    weights: Any = None
+
+    def __post_init__(self) -> None:
+        w = self.weights
+        if not isinstance(w, dict) or len(w) < 2:
+            raise ValueError("Categorical takes the weight of each category, two or more, as a dict: "
+                             "Categorical({'stable': 0.1, 'mobile': 0.9}).")
+        for name, weight in w.items():
+            if not isinstance(name, str) or not name:
+                raise ValueError(f"Categorical: a category is named by a non-empty string, got {name!r}")
+            if isinstance(weight, bool) or not isinstance(weight, (int, float)) \
+                    or not math.isfinite(weight) or weight <= 0:
+                raise ValueError(f"Categorical: the weight of {name!r} must be a positive number, "
+                                 f"got {weight!r}")
+        object.__setattr__(self, "weights", {k: float(v) for k, v in w.items()})
+
+    def probabilities(self) -> dict[str, float]:
+        total = sum(self.weights.values())
+        return {k: v / total for k, v in self.weights.items()}
+
+    def draw(self, rng) -> str:
+        """One category, by weight. One uniform draw, whatever the number of categories."""
+        u = float(rng.random()) * sum(self.weights.values())
+        acc = 0.0
+        names = list(self.weights)
+        for name in names:
+            acc += self.weights[name]
+            if u < acc:
+                return name
+        return names[-1]
+
+    def __repr__(self) -> str:
+        return f"Categorical({self.weights!r})"
+
+
+class Category(Modifier):
+    """What ``varying_among(kind, table)`` builds when ``kind`` is a `Random` with a `Categorical`
+    law: the unit's drawn category, read through this rate's own ``table`` of multipliers.
+
+    The **law is what is shared**, not this object: two rates reading one law carry two of these,
+    one table each, and the engine draws the category once per unit for the law
+    (`values_at_birth`). Built without a table it is the bare `Random` a user names and shares, and
+    a rate refuses to carry it until a table is given."""
+
+    def __init__(self, unit: str, law: Categorical, table: "dict[str, float] | None" = None) -> None:
+        if unit not in VARYING_UNITS:
+            raise ValueError(
+                f"unknown unit {unit!r}; a value varies among one of {list(VARYING_UNITS)}")
+        if not isinstance(law, Categorical):
+            raise TypeError(f"a Category reads a Categorical law, got {law!r}")
+        self.unit, self.law, self.table = unit, law, None
+        self._mean = 1.0
+        if table is not None:
+            if not isinstance(table, dict):
+                raise TypeError(
+                    f"the multipliers per category are a dict over the law's categories, "
+                    f"{list(law.weights)}, got {table!r}")
+            missing = [k for k in law.weights if k not in table]
+            unknown = [k for k in table if k not in law.weights]
+            if missing or unknown:
+                raise ValueError(
+                    f"the multipliers per category must name exactly the law's categories "
+                    f"{list(law.weights)}: missing {missing}, unknown {unknown}")
+            for k, v in table.items():
+                if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v < 0:
+                    raise ValueError(f"the multiplier of category {k!r} must be a non-negative number, "
+                                     f"got {v!r}")
+            mean = sum(p * float(table[k]) for k, p in law.probabilities().items())
+            if mean <= 0:
+                raise ValueError("the multipliers per category are all 0, so the rate would be 0 "
+                                 "everywhere; give at least one category a positive multiplier")
+            self.table = {k: float(v) for k, v in table.items()}
+            self._mean = mean
+
+    @property
+    def reads(self) -> tuple[str, str]:      # type: ignore[override]
+        return (DRAWN, self.unit)
+
+    def with_table(self, table) -> "Category":
+        return Category(self.unit, self.law, table)
+
+    def draw_category(self, rng) -> str:
+        return self.law.draw(rng)
+
+    def factor_for(self, category: str) -> float:
+        """This rate's multiplier for a drawn category, normalised to mean 1 under the weights."""
+        if self.table is None:
+            raise ValueError(
+                f"Random({self.unit!r}, {self.law!r}) is carried by a rate without the multipliers "
+                f"per category: write varying_among(kind, {{'stable': 0.2, 'mobile': 1.1}}) with one "
+                f"number for each of {list(self.law.weights)}.")
+        return self.table[category] / self._mean
+
+    def draw(self, rng) -> float:
+        """An unshared reading: draw the category, return this rate's multiplier for it."""
+        return self.factor_for(self.draw_category(rng))
+
+    def factor(self, **_: Any) -> float:
+        raise NotImplementedError(
+            f"a Random is carried, not computed: the engine draws its value for each of the "
+            f"{self.unit} and passes it to Rate.effective(carried_factor=...).")
+
+    def written_call(self) -> str:
+        return f"{VARYING_AMONG}(Random({self.unit!r}, {self.law!r}), {self.table!r})"
+
+    def __repr__(self) -> str:
+        return f"Random({self.unit!r}, {self.law!r})"
+
+    def __eq__(self, other: object) -> bool:
+        return (isinstance(other, Category) and other.unit == self.unit and other.law == self.law
+                and other.table == self.table)
+
+    def __hash__(self) -> int:
+        return hash((Category, self.unit, tuple(self.law.weights.items()),
+                     tuple(self.table.items()) if self.table else None))
+
+
+_WRITTEN_AS.update({Drawn: VARYING_AMONG, Inherited: VARYING_AMONG, Category: VARYING_AMONG})
 
 #: The laws a `Random` may be **written** with. A bare distribution is the other one and needs no
 #: name — it is the law of holding what you drew.
-WRITABLE = ("Drift",)
+WRITABLE = ("Drift", "Categorical")
 
 __all__ = ["Drift", "Drawn", "Inherited", "WRITABLE"]

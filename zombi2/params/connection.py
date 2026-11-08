@@ -28,7 +28,7 @@ from typing import Any, ClassVar, Mapping
 
 from .driver import OnTime, OnTotalDiversity, Random, TotalDiversity
 from .evaluate import CHANGING_AT, DRIVEN, Modifier, SCALED_BY, SET_BY, VARYING_AMONG, WEIGHTED_BY, _WRITTEN_AS, _driver_form, describe
-from .law import Drawn, Drift, Inherited
+from .law import Categorical, Category, Drawn, Drift, Inherited
 from .retired import check_no_retired_keywords
 from .driver import Measured, Time
 
@@ -252,6 +252,19 @@ def varying_among(among: object = None, law: object = None, **retired: object) -
             "varying_among takes the plural unit to vary among and the law it follows — "
             "varying_among('families', LogNormal(0.0, 0.5)) — or a Random built by name, "
             "varying_among(family_speed), which is how two rates share one draw.")
+    if isinstance(among, Category):
+        # a Random with a Categorical law: the shared object draws the category, and this rate
+        # gives its own multiplier per category — varying_among(kind, {"stable": 0.2, ...}) (#478)
+        if law is None:
+            raise TypeError(
+                f"a Random with a Categorical law needs this rate's multiplier per category: "
+                f"varying_among(kind, {{...}}) with one number for each of {list(among.law.weights)}.")
+        return among.with_table(law)
+    if isinstance(law, Categorical):
+        raise TypeError(
+            "a Categorical law draws a category, and a rate reads it through a table of multipliers: "
+            "name the draw and give the table — kind = Random('families', Categorical({...})); "
+            "loss = PerCopy(0.5).varying_among(kind, {...}) — so that several rates can read one draw.")
     if isinstance(among, (Drawn, Inherited)):
         if law is not None:
             raise TypeError(

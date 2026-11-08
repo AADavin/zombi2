@@ -51,7 +51,8 @@ import numpy as np
 
 from .._runtime.parallel import guard_pool_workers, pool_errors, resolve_workers
 from .._runtime.progress import progress_bar
-from ..params.evaluate import values_at_birth
+from ..params.evaluate import drawn_categories, values_at_birth
+from .multipliers import categorical_laws
 from ..rng import seed_sequence
 from ._live import enter, retire, weighted_index
 from ._transfer import mean_root_to_tip, recipient_index
@@ -238,6 +239,11 @@ def prepare_family_context(tree, *, dup, tra, los, transfer_to, replacement, sel
     fam_by = {"duplication": tuple(m for m, _ in dup.carried_modifiers(unit="families")),
               "transfer": tuple(m for m, _ in tra.carried_modifiers(unit="families")),
               "loss": tuple(m for m, _ in los.carried_modifiers(unit="families"))}
+    if len(categorical_laws(fam_by)) > 1:
+        raise ValueError(
+            "two Categorical laws in one run: this version takes one, so that family_multipliers.tsv "
+            "has one category column. Name one Random('families', Categorical({...})) and read it "
+            "on every rate that needs it.")
     # the contemporaneous-lineage machinery: sorted birth / death times (two pointers give the set alive
     # at any t) and the times can_xfer (≥ 2 lineages alive) flips.
     births = sorted((tree.nodes[i].birth_time, i) for i in tree.nodes)
@@ -272,10 +278,12 @@ def _family_mults(rng, fam_by):
     modifiers were written — so it is reproducible. ``1.0`` where a rate carries none. One per-family draw
     object read by two rates is one draw shared between them, which is how a family-wide tempo is
     said."""
-    shared: dict[int, float] = {}    # across this family's rates: one object, one number
-    out = {}
+    shared: dict = {}                # across this family's rates: one object, one number
+    out: dict = {}
     for key in ("duplication", "transfer", "loss"):
         out[key] = math.prod(values_at_birth(fam_by.get(key, ()), rng, shared))
+    for category in drawn_categories(shared):      # one Categorical law per run (#478)
+        out["category"] = category
     return out
 
 
@@ -655,7 +663,9 @@ def _stream_chunk(task):
             events, node_genomes, multipliers, _replaced = _evolve_one(fid, lineage, birth_time, seedseq)
             n_events += len(events)
             if want["family_multipliers"]:
-                files["family_multipliers"].write(multipliers_row(fid, multipliers, FAMILY_TARGETS) + "\n")
+                files["family_multipliers"].write(
+                    multipliers_row(fid, multipliers, FAMILY_TARGETS,
+                                    multipliers.get("category") if s["categories"] else None) + "\n")
             if want["events"]:
                 f = files["events"]
                 for row in event_rows(events, names):
@@ -794,7 +804,9 @@ def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, s
                                family_multipliers=multipliers,
                                lineage_multipliers=(lineage_multipliers_of(lin_mult, tree.labels())
                                                     if lin_mult else {}),
-                               replacements=replacements.counts() if ctx.replacement > 0.0 else None)
+                               replacements=replacements.counts() if ctx.replacement > 0.0 else None,
+                               family_categories={fid: m["category"] for fid, _e, _g, m, _r in results
+                                                  if "category" in m})
 
 
 def _run_streaming(tree, ctx, per_family, n_families, workers, seed, initial_families, family_names,
@@ -811,7 +823,8 @@ def _run_streaming(tree, ctx, per_family, n_families, workers, seed, initial_fam
     os.makedirs(shard_dir, exist_ok=True)
     extant_ids = sorted(tree.extant_leaves())
     stream_cfg = {"out_dir": out_dir, "outputs": set(outputs), "extant_ids": extant_ids,
-                  "shard_dir": shard_dir, "compact": compact}
+                  "shard_dir": shard_dir, "compact": compact,
+                  "categories": bool(categorical_laws(ctx.fam_by))}
     # The tree the run evolved along, beside its outputs — every one of them is indexed by this
     # tree's node labels, so without it the directory is not a dataset anyone (or `read_run`) can
     # reopen. The in-memory `.write` learned this first; a streamed run needs it more, being the one
@@ -854,12 +867,12 @@ def _run_streaming(tree, ctx, per_family, n_families, workers, seed, initial_fam
     bar.close()
 
     _finalize_stream(out_dir, shard_dir, outputs, extant_ids, n_chunks, initial_families, family_names,
-                     compact)
+                     compact, categories=bool(categorical_laws(ctx.fam_by)))
     return StreamedRun(out_dir, seed, n_families, total_events, tuple(outputs))
 
 
 def _finalize_stream(out_dir, shard_dir, outputs, extant_ids, n_chunks, initial_families, family_names,
-                     compact=False):
+                     compact=False, categories=False):
     """Stitch the per-chunk shards into the run's files — the header once, then every shard in chunk
     order (pure I/O, never a run-sized allocation) — write ``initial_genome.tsv`` from the seeded
     families' base ids, and drop the shard directory. Under ``compact`` the gene trees are one of
@@ -868,7 +881,7 @@ def _finalize_stream(out_dir, shard_dir, outputs, extant_ids, n_chunks, initial_
 
     headers = {"events": EVENTS_HEADER,
                "genomes": "lineage\tfamily\tcopy",
-               "family_multipliers": multipliers_header(FAMILY_TARGETS),
+               "family_multipliers": multipliers_header(FAMILY_TARGETS, categories),
                # extant tips only, so every column is n<id>: a profile never names a dead lineage
                "profiles": "family\t" + "\t".join(node_label(s) for s in extant_ids)}
     filenames = dict(_STREAM_FILENAMES)
