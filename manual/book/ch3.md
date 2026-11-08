@@ -53,6 +53,27 @@ A rate can also depend on **time**, on **the clade where the gene is**, or on a 
 
 [^origins]: `families=[family("toxin", origin=("n1", 0.4))]` declares a family and places it instead of leaving it to the rate: it originates on the lineage you name, at the time you give, keeps its name, and **adds to** whatever `initial_families` and `origination` produce. With both of those at zero the tree carries exactly the families you declared.
 
+### Families that differ in several rates at once
+
+Share one `Random` object across rates to make some families rarely lost and rarely transferred. Independent draws can combine low loss with ordinary transfer, filling every genome to the cap. Reusing one object gives each family the same multiplier on every rate. Separate objects draw independently. The new `Categorical` law draws one category per family. Each rate maps that category to its own multiplier:
+
+```python
+from zombi2.genomes import simulate_genomes_family
+from zombi2.params import Categorical, PerCopy, Random
+from zombi2.species import simulate_species_tree
+
+kind = Random('families', Categorical({"stable": 0.1, "mobile": 0.9}))
+duplication = PerCopy(0.05).varying_among(kind, {"stable": 0.2, "mobile": 1.1})
+transfer    = PerCopy(0.15).varying_among(kind, {"stable": 0.05, "mobile": 1.1})
+loss        = PerCopy(0.5).varying_among(kind, {"stable": 0.05, "mobile": 1.1})
+tree = simulate_species_tree(birth=1.0, death=0.0, n_extant=10, seed=1).complete_tree
+result = simulate_genomes_family(tree, duplication=duplication, transfer=transfer, loss=loss,
+                                 origination=0.5, initial_families=200, seed=1)
+stable = [f for f, category in result.family_categories.items() if category == "stable"]
+```
+
+ZOMBI2 normalises weights to sum to 1. ZOMBI2 normalises each rate's multipliers to weighted mean 1, preserving its base as the average rate. Read each family's category from the `category` column in `family_multipliers.tsv` and from `result.family_categories`.
+
 ## Lateral gene transfers
 
 When a transfer event occurs, the copy that triggers the events is one of that family's live copies, anywhere on the tree, and it is copied to another lineage that is **alive at that same instant**.

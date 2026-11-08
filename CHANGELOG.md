@@ -9,6 +9,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- A `Categorical` law for a draw among families: `kind = Random('families', Categorical({"stable": 0.1, "mobile": 0.9}))` draws one category per family, by weight, and each rate maps it to its own multiplier, `loss = PerCopy(0.5).varying_among(kind, {"stable": 0.05, "mobile": 1.1})`, normalised to mean 1 under the weights. One law read by several rates is one category per family, so a family that is rarely lost can also be rarely transferred. On every engine that draws per family, the parallel one included, and per lineage. `family_multipliers.tsv` gains a `category` column; in Python, `result.family_categories`. (#478)
+
 ## [0.54.0] - 2026-10-25
 
 ### Changed

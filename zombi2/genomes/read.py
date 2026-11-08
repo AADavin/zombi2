@@ -16,7 +16,7 @@ from ..tree import Tree, read_newick
 from .events import edges_from_tsv, gene_from_label
 from .family import FamilyGenomesResult, GeneCopy
 from .links import Link, links_from_tsv
-from .multipliers import lineage_multipliers_from_tsv, multipliers_from_tsv
+from .multipliers import categories_from_tsv, lineage_multipliers_from_tsv, multipliers_from_tsv
 
 #: Where a genomes run's files sit inside a run directory: the grouped layout first, then ``--flat``.
 _LAYOUTS = ("genomes", "")
@@ -122,10 +122,13 @@ def read_run(directory) -> FamilyGenomesResult:
         with open(links_path, encoding="utf-8") as f:
             links = links_from_tsv(f.read())
     multipliers: dict[int, dict[str, "float | None"]] = {}
+    categories: dict[int, str] = {}
     multipliers_path = os.path.join(handoff, "family_multipliers.tsv")
     if os.path.exists(multipliers_path):
         with open(multipliers_path, encoding="utf-8") as f:
-            multipliers = multipliers_from_tsv(f.read())
+            text = f.read()
+            multipliers = multipliers_from_tsv(text)
+            categories = categories_from_tsv(text)
     # the other axis: a multiplier per species branch. Keyed back to node ids through the tree's own
     # labels, which the file writes and this directory ships, so the table lines up with the rest of
     # the result rather than carrying names nothing else here uses.
@@ -139,7 +142,8 @@ def read_run(directory) -> FamilyGenomesResult:
                                lineage_multipliers_from_tsv(f.read(), tree.labels()))
     return FamilyGenomesResult(complete_tree=tree, node_genomes=_genomes(handoff, tree), edges=edges,
                                seed=seed, initial_genome=initial, links=links,
-                               family_multipliers=multipliers, lineage_multipliers=per_lineage)
+                               family_multipliers=multipliers, lineage_multipliers=per_lineage,
+                               family_categories=categories)
 
 
 __all__ = ["read_run"]

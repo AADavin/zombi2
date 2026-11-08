@@ -34,8 +34,7 @@ from ..params.conditioned import check_mapping_fires, names_a_live_level, resolv
 from ..params.mapping import Between, check_kernel_fires, check_not_a_kernel
 from ..rng import resolve_seed, stream
 from ..params.driver import OnTime
-from ..params.evaluate import (DRAWN, INHERITED, check_one_memory, describe, is_implemented,
-                               matches_declared, values_at_birth)
+from ..params.evaluate import (DRAWN, INHERITED, check_one_memory, describe, drawn_categories, is_implemented, matches_declared, values_at_birth)
 from ..params.connection import Driven, SetBy
 from ..params.parameter import Rate, as_rate
 from ..params.retired import check_no_retired_keywords
@@ -52,8 +51,9 @@ from .events import Event, GeneEdge, event_counts, events_from_edges, events_tsv
 from .gene_trees import (GeneTree, gene_trees_from_edges, write_gene_tree_table,
                          write_gene_trees)
 from .links import Link, links_of, links_tsv
-from .multipliers import (FAMILY_TARGETS, draw_lineage_multipliers, lineage_multipliers_of,
-                          lineage_multipliers_tsv, multipliers_of, multipliers_tsv)
+from .multipliers import (FAMILY_TARGETS, categorical_laws, draw_lineage_multipliers,
+                          lineage_multipliers_of, lineage_multipliers_tsv, multipliers_of,
+                          multipliers_tsv)
 from .profiles import Profiles, profiles_from_genomes
 
 if TYPE_CHECKING:  # a streamed run returns a StreamedRun (built by the per-family engine); type-only
@@ -129,6 +129,10 @@ class FamilyGenomesResult:
     #: ``found_resident`` · ``replaced`` · ``added_beside`` (#476). ``None`` when ``replacement`` was
     #: 0, when nothing was asked, and for a run read back from its files, which do not record it.
     replacements: "dict[str, int] | None" = None
+    #: ``{family: category}``, the category each family drew from the run's `Categorical` law (#478),
+    #: which ``write`` puts in the ``category`` column of ``family_multipliers.tsv``. Empty when no
+    #: rate read one.
+    family_categories: dict[int, str] = field(default_factory=dict)
 
     def __repr__(self) -> str:
         # "0 nodes" beside a real tip count reads as a broken run; a reopened run that did not write
@@ -386,7 +390,8 @@ class FamilyGenomesResult:
             (d / "links.tsv").write_text(links_tsv(self.links), encoding="utf-8")
         if "family_multipliers" in outputs:
             (d / "family_multipliers.tsv").write_text(
-                multipliers_tsv(self.family_multipliers, FAMILY_TARGETS), encoding="utf-8")
+                multipliers_tsv(self.family_multipliers, FAMILY_TARGETS,
+                                self.family_categories or None), encoding="utf-8")
         if "lineage_multipliers" in outputs:
             (d / "lineage_multipliers.tsv").write_text(
                 lineage_multipliers_tsv(self.lineage_multipliers, self.complete_tree.labels()),
@@ -1826,6 +1831,12 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     fam_by = {"duplication": tuple(m for m, _ in dup.carried_modifiers(unit="families")),
               "transfer": tuple(m for m, _ in tra.carried_modifiers(unit="families")),
               "loss": tuple(m for m, _ in los.carried_modifiers(unit="families"))}
+    if len(categorical_laws(fam_by)) > 1:
+        raise ValueError(
+            "two Categorical laws in one run: this version takes one, so that family_multipliers.tsv "
+            "has one category column. Name one Random('families', Categorical({...})) and read it "
+            "on every rate that needs it.")
+    family_categories: dict[int, str] = {}
     any_family = any(fam_by.values()) or any_written
     # A rate carrying nothing per family holds 1.0 for every family, so all such rates share one
     # empty table rather than each filling its own — which is what lets _FamilyWeights sum them once.
@@ -1877,7 +1888,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
             # one draw per distinct modifier *object* for this family, shared across its rates: the
             # same `Random` object written on duplication and on loss means one number, so a fast
             # family is fast at both. Two separately built ones are two draws even with the same law.
-            shared: dict[int, float] = {}
+            shared: dict = {}
             for key, mods in fam_by.items():
                 own = None if declared_at is None else fam_own.get(key, {}).get(declared_at)
                 if own is not None:
@@ -1901,6 +1912,8 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                 fam_mult[key][f] = math.prod(values_at_birth(mods, rng, shared))
                 if fam_fixed is not None:
                     fam_fixed[key][f] = 0.0
+            for category in drawn_categories(shared):       # one law per run: one category
+                family_categories[f] = category
         return f
 
     # Which of the three copy-consuming rates is a fixed per-lineage budget rather than a per-copy
@@ -2294,7 +2307,8 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                                if any_lineage else {})
     return FamilyGenomesResult(tree, genomes, events, seed, named, module_map, initial_genome,
                                cap, links, multipliers, per_lineage_multipliers,
-                               replacements.counts() if replacements is not None else None)
+                               replacements.counts() if replacements is not None else None,
+                               family_categories)
 
 
 # --- process spec: a genome bundled but UNEXECUTED, for a joint model to grow with the tree --------

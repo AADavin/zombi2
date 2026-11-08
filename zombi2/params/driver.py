@@ -35,7 +35,7 @@ from typing import Any, ClassVar, Mapping
 
 from .evaluate import (CHANGING_AT, MEASURED, SCALED_BY, SET_BY, UNITS, VARYING_UNITS,
                       Modifier, _WRITTEN_AS)
-from .law import Drawn, Drift, Inherited
+from .law import Categorical, Category, Drawn, Drift, Inherited
 from .retired import check_no_retired_keywords
 
 
@@ -335,7 +335,14 @@ def Random(unit: str | None = None, law: object = None, **retired: Any) -> Modif
             f"a Random needs the plural unit its value varies among — Random('families', "
             f"LogNormal(0.0, 0.5)); one of {list(VARYING_UNITS)}.")
     if isinstance(law, Drift):
+        if isinstance(law.dist, Categorical):
+            raise ValueError(
+                "Drift(Categorical(...)) has no meaning: a category is drawn once and kept, there is "
+                "no step to take at a split. Write Random(unit, Categorical({...})) for the category, "
+                "or Drift(LogNormal(...)) for a value that drifts.")
         return Inherited(unit, law.dist, law.bins)
+    if isinstance(law, Categorical):
+        return Category(unit, law)
     return Drawn(unit, law)
 
 
