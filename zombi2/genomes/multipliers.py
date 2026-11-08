@@ -29,6 +29,10 @@ import math
 
 from ..params.evaluate import values_at_birth, values_at_split
 
+#: the header of the column that holds a family's drawn category (#478), written after the targets
+#: when the run read a `Categorical` law
+CATEGORY = "category"
+
 #: the parameters a family resolution run draws a multiplier for, in the order the columns list them
 FAMILY_TARGETS = ("duplication", "transfer", "loss")
 
@@ -58,29 +62,39 @@ def _cell(value: "float | None") -> str:
     return "" if value is None else repr(float(value))
 
 
-def multipliers_header(targets) -> str:
-    """The header of ``family_multipliers.tsv``."""
-    return "\t".join(("family", *targets))
+def multipliers_header(targets, categories: bool = False) -> str:
+    """The header of ``family_multipliers.tsv``; with ``categories``, the `CATEGORY` column last."""
+    return "\t".join(("family", *targets, *((CATEGORY,) if categories else ())))
 
 
-def multipliers_row(family: int, row, targets) -> str:
-    """One family's row of ``family_multipliers.tsv``."""
-    return "\t".join((str(family), *(_cell(row[target]) for target in targets)))
+def multipliers_row(family: int, row, targets, category: "str | None" = None) -> str:
+    """One family's row of ``family_multipliers.tsv``; ``category`` adds the family's drawn category
+    as the last cell, in a run that wrote the column."""
+    cells = [str(family), *(_cell(row[target]) for target in targets)]
+    if category is not None:
+        cells.append(category)
+    return "\t".join(cells)
 
 
-def multipliers_tsv(multipliers, targets) -> str:
+def multipliers_tsv(multipliers, targets, categories: "dict[int, str] | None" = None) -> str:
     """``family_multipliers.tsv``: the header, then one row per family in family order. A run whose
-    rates do not vary among families writes the header alone."""
-    rows = [multipliers_header(targets)]
-    rows += [multipliers_row(f, multipliers[f], targets) for f in sorted(multipliers)]
+    rates do not vary among families writes the header alone. ``categories`` (``{family:
+    category}``, #478) adds the `CATEGORY` column, written for every family it names."""
+    with_cat = categories is not None
+    rows = [multipliers_header(targets, with_cat)]
+    rows += [multipliers_row(f, multipliers[f], targets,
+                             (categories or {}).get(f, "") if with_cat else None)
+             for f in sorted(multipliers)]
     return "\n".join(rows) + "\n"
 
 
 def multipliers_from_tsv(text: str) -> dict[int, dict[str, "float | None"]]:
-    """The multipliers `multipliers_tsv` wrote, read back."""
+    """The multipliers `multipliers_tsv` wrote, read back; a `CATEGORY` column is read by
+    `categories_from_tsv` and skipped here."""
     lines = [line for line in text.splitlines() if line.strip()]
     header = lines[0].split("\t") if lines else []
-    targets = tuple(header[1:])
+    columns = tuple(header[1:])
+    targets = columns[:-1] if columns and columns[-1] == CATEGORY else columns
     known = (FAMILY_TARGETS, ORDERED_TARGETS, SEQUENCE_TARGETS)
     if not header or header[0] != "family" or targets not in known:
         raise ValueError("family_multipliers.tsv must start with one of the headers "
@@ -91,6 +105,35 @@ def multipliers_from_tsv(text: str) -> dict[int, dict[str, "float | None"]]:
         out[int(family)] = {target: (float(cell) if cell else None)
                             for target, cell in zip(targets, cells)}
     return out
+
+
+def categories_from_tsv(text: str) -> dict[int, str]:
+    """``{family: category}`` from a ``family_multipliers.tsv`` that has the `CATEGORY` column;
+    ``{}`` when it has none."""
+    lines = [line for line in text.splitlines() if line.strip()]
+    header = lines[0].split("\t") if lines else []
+    if not header or header[-1] != CATEGORY:
+        return {}
+    at = len(header) - 1
+    out: dict[int, str] = {}
+    for line in lines[1:]:
+        cells = line.split("\t")
+        if len(cells) > at and cells[at]:
+            out[int(cells[0])] = cells[at]
+    return out
+
+
+def categorical_laws(mods_by_target) -> list:
+    """The distinct `Categorical` laws the rates carry, by identity, in written order (#478). An
+    engine allows one per run in this version, so that `family_multipliers.tsv` has one category
+    column."""
+    laws: list = []
+    for mods in mods_by_target.values():
+        for m in mods:
+            law = getattr(m, "law", None)
+            if hasattr(m, "draw_category") and not any(law is seen for seen in laws):
+                laws.append(law)
+    return laws
 
 
 # --- the other axis: a multiplier per species branch, shared by every family ----------------------
@@ -168,8 +211,9 @@ def draw_lineage_multipliers(mods_by_target, tree, rng, targets=LINEAGE_TARGETS
     values: dict[int, tuple[float, ...]] = {}
     for i in _preorder(tree):                                   # parent before child
         parent = tree.nodes[i].parent
-        values[i] = (values_at_birth(objects, rng) if parent is None
-                     else values_at_split(objects, values[parent], rng))
+        shared: dict = {}          # one branch's cache: a Categorical law read by two rates is one draw
+        values[i] = (values_at_birth(objects, rng, shared) if parent is None
+                     else values_at_split(objects, values[parent], rng, shared))
     where = {id(m): j for j, m in enumerate(objects)}
     return {target: {i: math.prod(v[where[id(m)]] for m in mods_by_target.get(target, ()))
                      for i, v in values.items()}

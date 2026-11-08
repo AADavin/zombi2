@@ -65,7 +65,7 @@ from ..params.mapping import check_not_a_kernel
 from ..params.choice import Distance
 from ..params.driver import OnTime
 from ..params.evaluate import (DRAWN, INHERITED, cell_name, check_one_memory, describe,
-                               is_implemented, values_at_birth)
+                               drawn_categories, is_implemented, values_at_birth)
 from ..params.connection import Driven, SetBy
 from ..params.parameter import Rate, as_rate
 from ..params.scope import PerChromosome, PerCopy, PerLineage
@@ -89,7 +89,8 @@ from .events import (_COLS, Event, EventTally, GeneEdge, _branches, _name, edges
 from .gene_trees import (GeneTree, gene_tree_rows, gene_trees_from_edges, write_gene_tree_table,
                          write_gene_trees)
 from .links import Link, links_of, links_tsv
-from .multipliers import (ORDERED_LINEAGE_TARGETS, ORDERED_TARGETS, draw_lineage_multipliers,
+from .multipliers import (ORDERED_LINEAGE_TARGETS, ORDERED_TARGETS, categorical_laws,
+                          draw_lineage_multipliers,
                           lineage_multipliers_of, lineage_multipliers_tsv, multipliers_of,
                           multipliers_tsv)
 from .profiles import Profiles, profiles_from_genomes, profiles_header, profiles_row
@@ -315,6 +316,9 @@ class OrderedGenomesResult:
     #: in the order they were minted; ``write`` puts them in ``groups.tsv``. A unit is one copy of
     #: the group in one genome, so two genes with the same unit travelled together.
     grouped_genes: "tuple[tuple[str, int, int, int], ...]" = ()
+    #: ``{family: category}``, the category each family drew from the run's `Categorical` law (#478);
+    #: the ``category`` column of ``family_multipliers.tsv``. Empty when no rate read one.
+    family_categories: dict[int, str] = field(default_factory=dict)
     #: How the transfers that arrived where their family already had a copy went:
     #: ``found_resident`` · ``replaced`` · ``added_beside`` (#476); ``None`` at ``replacement=0``.
     replacements: "dict[str, int] | None" = None
@@ -515,7 +519,8 @@ class OrderedGenomesResult:
             (d / "links.tsv").write_text(links_tsv(self.links), encoding="utf-8")
         if "family_multipliers" in outputs:
             (d / "family_multipliers.tsv").write_text(
-                multipliers_tsv(self.family_multipliers, ORDERED_TARGETS), encoding="utf-8")
+                multipliers_tsv(self.family_multipliers, ORDERED_TARGETS,
+                                self.family_categories or None), encoding="utf-8")
         if "lineage_multipliers" in outputs:
             (d / "lineage_multipliers.tsv").write_text(
                 lineage_multipliers_tsv(self.lineage_multipliers, self.complete_tree.labels(),
@@ -891,7 +896,7 @@ class _OrderedStream:
 
     def close(self, *, seed, links, initial_genome, named: int, family_multipliers,
               lineage_multipliers, groups=None, grouped_genes=(), family_names=None,
-              replacements=None) -> StreamedRun:
+              replacements=None, family_categories=None) -> StreamedRun:
         """Write what is left, build the gene trees, and hand back the run's `StreamedRun`."""
         self.flush()
         for f in (self._events, self._rearrangement_file, self._chromosome_file, self._gene_order):
@@ -923,7 +928,8 @@ class _OrderedStream:
             (d / "links.tsv").write_text(links_tsv(links), encoding="utf-8")
         if "family_multipliers" in want:
             (d / "family_multipliers.tsv").write_text(
-                multipliers_tsv(family_multipliers, ORDERED_TARGETS), encoding="utf-8")
+                multipliers_tsv(family_multipliers, ORDERED_TARGETS, family_categories or None),
+                encoding="utf-8")
         if "lineage_multipliers" in want:
             (d / "lineage_multipliers.tsv").write_text(
                 lineage_multipliers_tsv(lineage_multipliers, self.tree.labels(),
@@ -2938,6 +2944,12 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
               "inversion": tuple(m for m, _ in inv.carried_modifiers(unit="families")),
               "transposition": tuple(m for m, _ in trp.carried_modifiers(unit="families")),
               "translocation": tuple(m for m, _ in trl.carried_modifiers(unit="families"))}
+    if len(categorical_laws(fam_by)) > 1:
+        raise ValueError(
+            "two Categorical laws in one run: this version takes one, so that family_multipliers.tsv "
+            "has one category column. Name one Random('families', Categorical({...})) and read it "
+            "on every rate that needs it.")
+    family_categories: dict[int, str] = {}
     any_family = any(fam_by.values())
     fam_mult: dict[str, _FamilyWeights] = {key: _FamilyWeights() for key in fam_by}
 
@@ -2956,9 +2968,11 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         if any_family:
             # one draw per distinct modifier object for this family, shared across its rates (see
             # `values_at_birth`): one object written on two rates is one number.
-            shared: dict[int, float] = {}
+            shared: dict = {}
             for key, mods in fam_by.items():
                 fam_mult[key][f] = math.prod(values_at_birth(mods, rng, shared))
+            for category in drawn_categories(shared):      # one Categorical law per run (#478)
+                family_categories[f] = category
         return f
 
     def new_chromosome() -> int:
@@ -3748,10 +3762,12 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                              lineage_multipliers=per_lineage_multipliers,
                              groups=group_members, grouped_genes=grouped_genes,
                              family_names={fid: name for name, fid in named.items()},
-                             replacements=replacements.counts() if replacements is not None else None)
+                             replacements=replacements.counts() if replacements is not None else None,
+                             family_categories=family_categories)
     return OrderedGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed,
                                 named, module_map, event_positions, initial_genome, links,
                                 multipliers, per_lineage_multipliers, group_members, grouped_genes,
+                                family_categories,
                                 replacements.counts() if replacements is not None else None)
 
 

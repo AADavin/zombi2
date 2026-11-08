@@ -13,6 +13,12 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 - Hidden lineages for a tree you already have: `species.add_hidden_lineages(sampled, birth=, death=, sampling=, stem=)` (`zombi2 species out/ --sampled-tree FILE --birth B --death D --sampling RHO [--stem S]`) adds the lineages a dated sampled tree does not show, extinct and alive-but-unsampled, under a birth–death process with sampling conditioned on the tree, so that pruning the result to its tips gives the input back exactly. The result is a species run: `species_complete.nwk`, `species_extant.nwk`, `species_fates.tsv`, `species_events.tsv`, and `names.tsv` with the input's labels. `species.fit_birth_death_rates(sampled, sampling=, death=)` estimates the rates from the tree. A validation check pins the attachments and the unsampled tips to their closed forms. (#480)
 
+## [0.55.0] - 2026-11-08
+
+### Added
+
+- A `Categorical` law for a draw among families: `kind = Random('families', Categorical({"stable": 0.1, "mobile": 0.9}))` draws one category per family, by weight, and each rate maps it to its own multiplier, `loss = PerCopy(0.5).varying_among(kind, {"stable": 0.05, "mobile": 1.1})`, normalised to mean 1 under the weights. One law read by several rates is one category per family, so a family that is rarely lost can also be rarely transferred. On every engine that draws per family, the parallel one included, and per lineage. `family_multipliers.tsv` gains a `category` column; in Python, `result.family_categories`. (#478)
+
 ## [0.54.0] - 2026-10-25
 
 ### Changed
