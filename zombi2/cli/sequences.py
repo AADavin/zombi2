@@ -33,7 +33,7 @@ from zombi2._runtime.report import write_run_report
 from zombi2.sequences import (IMPLEMENTED_MODIFIERS, _WRITE_OUTPUTS, _calibrate,
                               mean_pairwise_identity, simulate_sequences)
 from zombi2.sequences.substitution_models import (
-    dayhoff, gtr, hky85, jc69, jtt, k80, lg, poisson, wag,
+    PROFILE_MIXTURES, dayhoff, gtr, hky85, jc69, jtt, k80, lg, poisson, wag,
 )
 from zombi2.tree import read_newick
 from zombi2.cli.framework import (_add_compact_arg, _add_flat_arg, _add_force_arg, _add_quiet_arg, _add_parallel_arg, _add_from_arg,
@@ -119,6 +119,11 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
                    help="[gtr] the six exchangeabilities (default all 1)")
     # Across-site rate variation decorates ANY model on the menu, so these sit outside _MODEL_KNOBS
     # (which is the per-matrix physical parameters, and whose stray-knob check is per model).
+    g.add_argument("--mixture", default=None, metavar="LABEL", choices=PROFILE_MIXTURES,
+                   type=str.upper,
+                   help="[protein models] a published mixture of site profiles, C10 to C60: every "
+                        "site draws one profile's amino-acid frequencies by weight, as in LG+C60. "
+                        "Which profile each site drew is written in profile_assignments.tsv")
     g.add_argument("--gamma-shape", type=float, default=None, metavar="A", dest="gamma_shape",
                    help="[any model] Gamma shape a for rate variation across sites (+G): smaller is "
                         "more unequal — 0.5 is strong, 5 nearly flat")
@@ -194,6 +199,8 @@ def _effective_model_params(args) -> dict:
     reading the log should not have to know that the category count defaults to 4."""
     resolved = _resolve_model_knobs(args)
     params = {name: resolved[name] for name in _MODEL_KNOBS.get(args.model, ())}
+    if args.mixture is not None:
+        params["mixture"] = args.mixture
     if args.gamma_shape is not None or args.invariant:
         params["invariant"] = args.invariant or 0.0
         if args.gamma_shape is not None:
@@ -211,6 +218,8 @@ def _build_model(args: argparse.Namespace):
     chemistry: every model on the menu takes it, which is why the three flags are not per-model knobs."""
     if args.model in _PROTEIN_MODELS:
         model = _PROTEIN_MODELS[args.model]()
+        if args.mixture is not None:
+            model = model.profile_mixture(args.mixture)
     else:
         knobs = _resolve_model_knobs(args)
         kappa = knobs["kappa"]
@@ -271,6 +280,10 @@ def run(args, parser):
              if getattr(args, k) is not None and k not in allowed]
     if stray:
         parser.error(f"these options don't apply to --model {args.model}: {', '.join(stray)}")
+    if args.mixture is not None and args.model not in _PROTEIN_MODELS:
+        parser.error(f"--mixture {args.mixture} needs a protein model (--model lg, wag, jtt, "
+                     f"dayhoff or poisson): its profiles are amino-acid frequencies, and "
+                     f"--model {args.model} evolves bases")
     # --rate-categories counts the classes of a Gamma, so on its own it asks for nothing; caught here
     # rather than in across_sites() so it reads as the flag error it is
     if args.rate_categories is not None and args.gamma_shape is None:

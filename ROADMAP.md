@@ -58,8 +58,8 @@ the chromosome network; and founding a nucleotide run from a real annotation (`g
 
 What ships is in the Sequences chapter — the reversible menu (JC69 through GTR, the empirical
 protein matrices), `reversible()` over any alphabet, +I/+G site rates, per-site frequency
-profiles, per-clade models, partitions, indels, the drawn, inherited and driven clocks, and a
-substitution rate drawn among gene families.
+profiles and the published profile mixtures C10 to C60, per-clade models, partitions, indels, the
+drawn, inherited and driven clocks, and a substitution rate drawn among gene families.
 
 | Feature | What it adds | Status |
 | --- | --- | --- |
@@ -69,7 +69,7 @@ substitution rate drawn among gene families.
 | White-noise clock | An uncorrelated clock whose branch factor has variance shrinking with branch duration — the one i.i.d. clock that stays the same model when a branch is split. | planned |
 | Free site-rate categories | User-chosen rate categories and weights beside `gamma_shape`. The machinery exists; the written form does not. | considering |
 | Codon models | GY94/MG94 with ω, the site-model series on top, and mutation–selection models (site-wise fitnesses) as the natural extension. | considering |
-| Site-profile mixtures | `profiles=` takes per-site frequency rows today; a built-in mixture to draw them from is missing, and profiles do not run on the parallel engine yet. | considering |
+| User profiles on the parallel engine | The published mixtures C10 to C60 run on both engines; a user's own `profiles=` table still runs serially only. | considering |
 | Covarion | Hidden rate-switching states over a doubled alphabet. | considering |
 | Heterotachy | A site's rate class re-drawn within clades. Refused by name today: it breaks the once-per-family class draw the engine's speed rests on. | considering |
 | Autocorrelated rates across sites | Neighbouring sites sharing rate classes instead of independent draws. | considering |

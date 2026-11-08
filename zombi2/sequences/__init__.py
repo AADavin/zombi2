@@ -63,6 +63,8 @@ import pathlib
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
+from typing import IO
+
 import numpy as np
 
 from ..genomes import FamilyGenomesResult
@@ -90,7 +92,7 @@ from .substitution_models import (BASES, SubstitutionModel, _with_frequencies, d
                                   encode, gtr, hky85, jc69, jtt, k80, lg, poisson, wag)
 
 _WRITE_OUTPUTS = ("summary", "alignments", "ancestral", "founding", "phylograms", "species_phylogram",
-                  "genomes", "initial_genome", "events", "family_multipliers")
+                  "genomes", "initial_genome", "events", "family_multipliers", "assignments")
 
 #: complement of each base, for reading a block laid down on the reverse strand
 _COMPLEMENT = str.maketrans("ACGT", "TGCA")
@@ -144,6 +146,8 @@ class SequencesResult:
       stem. It stands to ``genomes`` as ``founding`` stands to ``ancestral``.
     - ``family_multipliers`` — ``{family: {"substitution": multiplier}}``: the speed each family ran
       at, relative to the run's rate, when the substitution rate varies among families. Empty otherwise.
+    - ``profile_assignments`` — ``{family: (profile per site, …)}``: under a profile mixture, the
+      published profile (1 to K) each site drew, in site order. Empty otherwise.
     - ``seed`` — the run's seed.
     - ``unit`` — what the integer key of ``alignments`` / ``ancestral`` / ``founding`` / ``phylograms``
       **names**: ``"family"`` (a gene family id) on a family or ordered run, ``"block"`` (an index
@@ -191,6 +195,11 @@ class SequencesResult:
     #: genomes level writes its event-rate multipliers in, so the two read back the same way. Empty
     #: when the rate does not vary among families.
     family_multipliers: "dict[int, dict[str, float | None]]" = field(default_factory=dict)
+    #: ``{family: (profile per site, …)}`` — under a **profile mixture**
+    #: (`SubstitutionModel.profile_mixture`), the published profile, 1 to K, each site of each family
+    #: drew, in site order; written in ``profile_assignments.tsv``. Empty when the model carries no
+    #: mixture.
+    profile_assignments: dict[int, tuple[int, ...]] = field(default_factory=dict)
     #: Per host block, which inserted runs sit inside it and which record carries which — the plan
     #: `alignments` splices by. Kept because it is the *plan*, not the rows: the rows are the
     #: alignment over again, and a whole-genome run cannot afford a second copy of that.
@@ -321,7 +330,8 @@ class SequencesResult:
         }
 
     def write(self, directory, outputs=("alignments", "phylograms", "species_phylogram", "genomes",
-                                        "initial_genome", "summary", "family_multipliers"), *,
+                                        "initial_genome", "summary", "family_multipliers",
+                                        "assignments"), *,
               flat: bool = False, compact: bool = False,
               bundle: "bool | None" = None) -> None:
         """Write chosen ``outputs`` to ``directory`` (created if needed). ``<u>`` below is
@@ -345,6 +355,9 @@ class SequencesResult:
         - ``"family_multipliers"`` → ``family_multipliers.tsv``: the speed each family ran at, one
           row per family. Only the header when the rate does not vary among families, and the same
           format the genomes level writes its event-rate multipliers in.
+        - ``"assignments"`` → ``profile_assignments.tsv``: under a profile mixture, the profile each
+          site of each family drew (``family``, ``site``, ``profile_number``), one row per site.
+          Nothing is written when the model carries no mixture.
 
         Everything that is one file per family or per node gets a subdirectory, or the two trees and
         the one founding FASTA would be lost among thousands; ``flat=True`` writes everything into
@@ -398,6 +411,9 @@ class SequencesResult:
         if "family_multipliers" in outputs:
             (d / "family_multipliers.tsv").write_text(
                 multipliers_tsv(self.family_multipliers, SEQUENCE_TARGETS), encoding="utf-8")
+        if "assignments" in outputs and self.profile_assignments:
+            (d / "profile_assignments.tsv").write_text(
+                _assignments_tsv(self.profile_assignments), encoding="utf-8")
         if "summary" in outputs:
             # The written summary describes the run *as written*, which is not quite what `summary()`
             # describes. Ancestral sequences are reconstructed in memory either way but only land on
@@ -992,6 +1008,9 @@ class _Sink:
         self._matched = self._compared = 0
         self.sites: "int | None" = None
         self.n_ancestral = 0
+        # `profile_assignments.tsv`, opened on the first family that drew profiles: a run with no
+        # mixture writes no file, as the in-memory write leaves none
+        self._assignments: "IO[str] | None" = None
 
     def _into(self, name: str) -> pathlib.Path:
         return grouped_dir(self.dir, name, self.flat)
@@ -1015,8 +1034,14 @@ class _Sink:
         self._matched += matched
         self._compared += compared
 
-    def family(self, fam: int, aln: dict, anc: dict, fnd: str, phylo: dict) -> None:
+    def family(self, fam: int, aln: dict, anc: dict, fnd: str, phylo: dict,
+               profiles: "tuple[int, ...] | None" = None) -> None:
         u = f"{self.stem}{fam}"
+        if profiles is not None and "assignments" in self.outputs:
+            if self._assignments is None:
+                self._assignments = open(self.dir / "profile_assignments.tsv", "w", encoding="utf-8")
+                self._assignments.write("\t".join(ASSIGNMENT_COLUMNS) + "\n")
+            self._assignments.write(_assignment_rows(fam, profiles))
         # families with a SURVIVING copy, matching what an in-memory run reports: a family that left
         # no extant gene has an empty alignment and writes no FASTA, so counting it here would make
         # a streamed run claim more families than the same run in memory
@@ -1059,6 +1084,8 @@ class _Sink:
         its families are minted as its run proceeds; here they all exist from the start."""
         if self._founding is not None:
             self._founding.close()
+        if self._assignments is not None:
+            self._assignments.close()
         for handle in self._compact_files.values():
             handle.close()
         if "family_multipliers" in self.outputs:
@@ -1076,7 +1103,7 @@ class _Sink:
 #: defaults to, minus the two a family run never has anyway (a genome is a nucleotide-run output, and
 #: nucleotide runs cannot stream: assembling a genome needs every block at once).
 _DEFAULT_STREAM_OUTPUTS = ("alignments", "phylograms", "species_phylogram", "summary",
-                           "family_multipliers")
+                           "family_multipliers", "assignments")
 
 
 def _resolve_partitions(model, partitions,
@@ -1211,6 +1238,86 @@ def _resolve_profiles(profiles, model, length) -> dict:
     return out
 
 
+#: the columns of ``profile_assignments.tsv``: the family, the site (a 0-based column, as
+#: ``sequence_events.tsv`` counts them) and the published profile it drew, 1 to K
+ASSIGNMENT_COLUMNS = ("family", "site", "profile_number")
+
+
+def _assignment_rows(family, profiles) -> str:
+    return "".join(f"{family}\t{site}\t{profile}\n" for site, profile in enumerate(profiles))
+
+
+def _assignments_tsv(assignments: dict) -> str:
+    """``profile_assignments.tsv`` whole: one row per site of every family that drew profiles."""
+    return "\t".join(ASSIGNMENT_COLUMNS) + "\n" + "".join(
+        _assignment_rows(family, assignments[family]) for family in sorted(assignments))
+
+
+@dataclass(frozen=True)
+class _MixtureLayout:
+    """How one family's sites were laid out to evolve under a profile mixture.
+
+    The sites of one profile evolve as one block, so a family costs ``K`` walks of its tree and
+    not ``L``: ``order`` is the layout the engine saw (column ``j`` of it is site ``order[j]``), and
+    ``inverse`` puts the columns back (site ``i`` sits at column ``inverse[i]``). ``profiles`` is
+    the truth kept for the user: the profile each site drew, 1 to K, in site order."""
+
+    profiles: tuple[int, ...]
+    order: tuple[int, ...]
+    inverse: np.ndarray
+
+
+def _mixture_layout(model, length: int, rng) -> "tuple[tuple, _MixtureLayout]":
+    """Draw each site's profile by weight and group the sites by profile: the partitions to evolve
+    and the layout to undo afterwards. One draw per site, from the stream handed in, so the result
+    follows the seed on either engine."""
+    weights = np.asarray(model.profile_weights, dtype=float)
+    drawn = rng.choice(len(weights), size=int(length), p=weights / weights.sum())
+    order = np.argsort(drawn, kind="stable")
+    inverse = np.empty(len(drawn), dtype=np.intp)
+    inverse[order] = np.arange(len(drawn))
+    present, counts = np.unique(drawn[order], return_counts=True)   # ascending, as `order` sorts
+    parts = tuple((model.profile_models[int(c)], int(n)) for c, n in zip(present, counts))
+    return parts, _MixtureLayout(tuple(int(c) + 1 for c in drawn),
+                                 tuple(int(j) for j in order), inverse)
+
+
+def _unshuffle(aln: dict, anc: dict, fnd: str, inverse: np.ndarray):
+    """Put a family's columns back in site order after a `_mixture_layout`."""
+    def back(seq: str) -> str:
+        return np.frombuffer(seq.encode("ascii"), dtype="S1")[inverse].tobytes().decode("ascii")
+    return ({k: back(v) for k, v in aln.items()}, {k: back(v) for k, v in anc.items()}, back(fnd))
+
+
+def _mixture_in(model, partitions):
+    """The profile mixture a run evolves under, or ``None``.
+
+    On the plain path it is ``model`` itself. Inside a partition list or a per-clade set it is
+    refused: a mixture lays a family's sites out by profile, and a block or a clade that wanted its
+    own mixture would need a layout per block or per clade, which nothing draws yet."""
+    def carries(m) -> bool:
+        return isinstance(m, SubstitutionModel) and bool(m.profile_models)
+
+    def in_set(m) -> bool:
+        return isinstance(m, Models) and any(carries(x) for x in (m.models or {}).values())
+
+    if partitions is not None:
+        for entry in partitions:
+            if isinstance(entry, (tuple, list)) and entry and (carries(entry[0]) or in_set(entry[0])):
+                raise ValueError(
+                    f"partitions cannot hold a profile mixture ({entry[0].name if carries(entry[0]) else 'in a per-clade set'}): "
+                    f"a mixture lays a family's whole sequence out by profile, and a block of sites "
+                    f"has no layout of its own. Give the mixture as model= with length=, or give the "
+                    f"blocks plain models.")
+        return None
+    if in_set(model):
+        raise ValueError(
+            "a per-clade model set (Models) cannot carry a profile mixture: a site draws its "
+            "profile once for the whole tree, and a clade with a mixture of its own would redraw it "
+            "mid-tree. Give the mixture as model=, or the clades plain models.")
+    return model if carries(model) else None
+
+
 def _bp_extent(spec, label):
     """An indel's size, as an `~zombi2.params.parameter.Extent` (SPEC §6): ``base × modifiers``, no
     scope. A bare number is the mean of a geometric draw, as everywhere else; any distribution is
@@ -1251,7 +1358,16 @@ def _evolve_partitions(gt, parts, rate, clock, rng, cdf_caches, names, founding=
     """
     pieces = []
     at = 0
+    # A recorded run names a column by its place in the family's whole layout, and `_record.walk`
+    # counts from the start of the partition it is given; so over several partitions the recorder
+    # is handed the slice of ids each one covers, and gets its own map back at the end.
+    whole_ids = None
+    if record is not None and len(parts) > 1:
+        total = sum(int(n) for _m, n in parts)
+        whole_ids = record.site_ids if record.site_ids is not None else tuple(range(total))
     for model, n in parts:
+        if whole_ids is not None:
+            record.site_ids = tuple(whole_ids[at:at + n])
         # One CDF cache for the whole run: it is keyed by (model, branch length), so several models
         # share it safely and branch lengths — which recur massively across families — are still
         # computed once per model.
@@ -1269,6 +1385,8 @@ def _evolve_partitions(gt, parts, rate, clock, rng, cdf_caches, names, founding=
         at += n
         aln, anc = _split(gt, states, names, base, present=present)
         pieces.append((aln, anc, decode(founding_states, base.alphabet)))
+    if whole_ids is not None:
+        record.site_ids = None if whole_ids == tuple(range(at)) else whole_ids
     if len(pieces) == 1:
         return pieces[0]
     # The node keys are the same in every partition — they come from the same tree, walked the same
@@ -1414,6 +1532,12 @@ def _simulate_loop(genomes, genes, *, joint: bool, seed, record: bool = False,
             raise TypeError(
                 f"gene {spec.name!r} needs one substitution model — model=lg() — and got "
                 f"{spec.model!r}. A per-lineage set or a partition list is not read on this path.")
+        if spec.model.profile_models:
+            raise ValueError(
+                f"gene {spec.name!r} carries a profile mixture ({spec.model.name}), which the joint "
+                f"path does not read yet: it evolves its genes slice by slice against each other's "
+                f"composition, and a mixture's per-site layout is not wired into that walk. Give the "
+                f"gene a model without the mixture, or run the plain path.")
         if spec.start is not None:
             if not isinstance(spec.start, SubstitutionModel):
                 raise TypeError(
@@ -1856,6 +1980,24 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
             "every worker, and a profile is per family. Run this level serially (drop `parallel`), or "
             "drop `profiles`.")
     site_profiles = {} if profiles is None else _resolve_profiles(profiles, model, length)
+    mixture = _mixture_in(model, partitions)      # the profile mixture, or None
+    if mixture is not None:
+        if profiles is not None:
+            raise ValueError(
+                f"{mixture.name} draws each site's profile from the mixture, and profiles= gives "
+                f"each site its row: two answers to which frequencies a site has. Use one or the "
+                f"other.")
+        if nucleotide:
+            raise ValueError(
+                f"{mixture.name} is a mixture of amino-acid profiles, and a nucleotide genome run "
+                f"evolves DNA. A profile mixture belongs to a family or ordered run with a protein "
+                f"model.")
+        if insertion or deletion:
+            raise ValueError(
+                f"indels are refused with a profile mixture ({mixture.name}): a site's profile would "
+                f"have to travel with the site as sites are gained and lost, and the layout a "
+                f"mixture evolves is written against a fixed site count. Drop the indels, or the "
+                f"mixture.")
 
     if nucleotide and families is not None:
         raise ValueError(
@@ -2085,6 +2227,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     # {family: multiplier} when the rate varies among families, empty otherwise. Drawn inside each
     # engine, from that engine's own generator, and read again at the end to write the table.
     drawn: dict[int, float] = {}
+    # {family: the profile each site drew} under a profile mixture, empty otherwise
+    assignments: dict[int, tuple[int, ...]] = {}
     if not parallel:
         # Serial reference engine — the default, left exactly as it was. One shared generator draws the
         # clock, then each family is walked in turn. `parallel` selects a *separate* engine (decision A),
@@ -2131,6 +2275,12 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                         f"the profile for block {family!r} has {len(f_parts)} rows but that block is "
                         f"{per_block[family][0]} bp. A profile carries one row per site, and on a "
                         f"nucleotide run the genome already fixed the length.")
+            layout = None
+            if mixture is not None:
+                # each site draws its profile first, from the run's stream, and the sites of one
+                # profile evolve as one block; the columns go back in site order below
+                assert f_parts is not None
+                f_parts, layout = _mixture_layout(mixture, f_parts[0][1], rng)
             seed_states = None if per_block is None else founding_seed[family]
             # Geometry first, letters second: which columns exist and who carries them is drawn over
             # the tree, and then the existing engine evolves that fixed width down it. Exact rather
@@ -2154,10 +2304,15 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                 n_deletions += history.deletions
                 if recorder is not None:      # a column is no longer its own id once sites move
                     recorder.site_ids, recorder.present = history.order, history.present
+            if recorder is not None and layout is not None:
+                recorder.site_ids = layout.order        # column j of the layout is site order[j]
             aln, anc, fnd = _evolve_partitions(gt, f_parts, f_rate, clock, rng, cdf_caches, names,
                                                founding=seed_states,
                                                present=None if history is None else history.present,
                                                record=recorder)
+            if layout is not None:
+                aln, anc, fnd = _unshuffle(aln, anc, fnd, layout.inverse)
+                assignments[family] = layout.profiles
             scaled = _scaled_gene_tree(gt, f_rate, clock)  # branch lengths in subs/site
             ext = scaled.extant
             phylo = {"complete": _gene_newick(scaled.complete, names),
@@ -2166,7 +2321,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                 alignments[family], ancestral[family] = aln, anc
                 founding[family], phylograms[family] = fnd, phylo
             else:
-                sink.family(family, aln, anc, fnd, phylo)   # written and forgotten
+                sink.family(family, aln, anc, fnd, phylo,            # written and forgotten
+                            None if layout is None else layout.profiles)
         bar.close()
     else:
         # Parallel engine (opt-in): one gene tree per process, each under its own spawned RNG stream, so
@@ -2182,7 +2338,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         shared = np.random.default_rng(spawned[0])
         clock = resolve_clock(clocks, driven, species_tree, gene_trees, shared)
         drawn = family_multipliers(fam_mods, gene_trees, shared)
-        alignments, ancestral, founding, phylograms = evolve_families(
+        alignments, ancestral, founding, phylograms, assignments = evolve_families(
             gene_trees, per_block, model, intergene_model, length, rate_base, clock,
             founding_seed if nucleotide else None, spawned[1:], workers, progress, names,
             sink=None if sink is None else sink.family, partitions=parts, multipliers=drawn)
@@ -2260,6 +2416,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                            () if families is None else tuple(families),
                            events,
                            multipliers,
+                           profile_assignments=assignments,
                            _insertions=insertion_plan,
                            _raw_rows=(alignments._raw if isinstance(alignments, _SplicedAlignments)
                                       else alignments),

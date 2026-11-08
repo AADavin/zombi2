@@ -9,6 +9,14 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- The published profile mixtures C10 to C60 as a model decoration: `lg().profile_mixture("C60")` (`--mixture C60` on the command line) gives every site of every family one profile's amino-acid frequencies, drawn by weight, over the model's exchangeabilities, the site-heterogeneous `LG+C60` of the field; it composes with `.across_sites(gamma_shape=…)` in either order (`LG+C60+G4`) and runs on the parallel engine and on streamed runs. The model carries the profiles as `profile_models` and `profile_weights`; the run records which profile each site drew in `result.profile_assignments` and `profile_assignments.tsv` (`family`, `site`, `profile_number`; token `assignments`). Refused with `profiles=`, `partitions=`, a per-clade set, indels and a nucleotide run. A validation check pins the profile shares to the weights and each profile's sites to its frequencies. (#483)
+
+### Fixed
+
+- A recorded run (`record=True`) over several partitions logged each substitution's site counted from the start of its partition; it now counts from the start of the sequence. Recording with `partitions=` stays refused, so no run that was accepted before is affected. (#483)
+
 ## [0.56.0] - 2026-11-08
 
 ### Added

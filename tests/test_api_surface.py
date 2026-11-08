@@ -151,6 +151,7 @@ _VIA_CONSTRUCTOR = {
     "gamma-shape": "zombi2.sequences.substitution_models:SubstitutionModel.across_sites",
     "invariant": "zombi2.sequences.substitution_models:SubstitutionModel.across_sites",
     "rate-categories": "zombi2.sequences.substitution_models:SubstitutionModel.across_sites",
+    "mixture": "zombi2.sequences.substitution_models:SubstitutionModel.profile_mixture",
     "tip-fates": "zombi2.tree:read_newick",
     "duplication": "zombi2.genomes:genome",
     "loss": "zombi2.genomes:genome",

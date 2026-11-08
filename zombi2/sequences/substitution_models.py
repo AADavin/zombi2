@@ -90,6 +90,11 @@ class SubstitutionModel:
     site_rates: tuple[float, ...] = (1.0,)
     #: the proportion of sites in each class, in the same order; sums to 1
     site_shares: tuple[float, ...] = (1.0,)
+    #: a **profile mixture** (`profile_mixture`): one model per published profile, this model's
+    #: exchangeabilities and rate classes over that profile's frequencies. Empty for a plain model.
+    profile_models: tuple["SubstitutionModel", ...] = ()
+    #: the weight of each profile, in the same order; sums to 1
+    profile_weights: tuple[float, ...] = ()
 
     #: the reversible eigendecomposition `p_matrix()` runs on, filled in by ``__post_init__``
     #: (through ``object.__setattr__``, since the dataclass is frozen). Not part of the public
@@ -116,6 +121,7 @@ class SubstitutionModel:
                 f"{sum(r * s for r, s in zip(rates, shares)):.6g} — a branch length is the mean "
                 f"substitutions per site, so the classes have to be normalised to it. Build them "
                 f"with across_sites(), which does this.")
+        self._check_profiles()
         # Precompute the reversible eigendecomposition once (numpy only) for fast, scipy-free exp(Qt).
         pi = self.stationary
         sq = np.sqrt(pi)
@@ -126,6 +132,28 @@ class SubstitutionModel:
         object.__setattr__(self, "_eigvals", w)
         object.__setattr__(self, "_left", V / sq[:, None])       # diag(1/√π) · V
         object.__setattr__(self, "_right", (V * sq[:, None]).T)   # Vᵀ · diag(√π)
+
+    def _check_profiles(self) -> None:
+        """A mixture's profile models must be this model over other frequencies: same alphabet, same
+        rate classes, no mixture of their own. Built by `profile_mixture`, which guarantees it; the
+        check is here because the fields are public and a hand-built mixture would otherwise evolve
+        sites under a model the name does not claim."""
+        models, weights = self.profile_models, self.profile_weights
+        if len(models) != len(weights):
+            raise ValueError(f"profile_models and profile_weights must be the same length, got "
+                             f"{len(models)} and {len(weights)}")
+        if not models:
+            return
+        if any(w <= 0 for w in weights) or not np.isclose(sum(weights), 1.0):
+            raise ValueError(f"profile weights must be positive and sum to 1, got {weights}")
+        for m in models:
+            if (not isinstance(m, SubstitutionModel) or m.alphabet != self.alphabet
+                    or m.site_rates != self.site_rates or m.site_shares != self.site_shares
+                    or m.profile_models):
+                raise ValueError(
+                    f"every profile model of {self.name} must be a model over the same alphabet with "
+                    f"the same rate classes and no mixture of its own; build the mixture with "
+                    f"profile_mixture(), which does this.")
 
     def _check_reversible(self) -> None:
         """Refuse a matrix `p_matrix()` would silently mis-evaluate.
@@ -296,9 +324,59 @@ class SubstitutionModel:
             rates.append(scale)
             shares.append(varying)
         # replace() re-runs __post_init__, so the eigendecomposition is rebuilt (once) and the
-        # mean-1 invariant above is checked on the way out rather than assumed
-        return replace(self, name=self.name + suffix,
-                       site_rates=tuple(rates), site_shares=tuple(shares))
+        # mean-1 invariant above is checked on the way out rather than assumed. A mixture's profile
+        # models take the same classes: a profile says which residues, the Gamma how fast.
+        rates_t, shares_t = tuple(rates), tuple(shares)
+        return replace(self, name=self.name + suffix, site_rates=rates_t, site_shares=shares_t,
+                       profile_models=tuple(replace(m, site_rates=rates_t, site_shares=shares_t)
+                                            for m in self.profile_models))
+
+    def profile_mixture(self, mixture: str) -> "SubstitutionModel":
+        """The same exchangeabilities over a published **mixture of site profiles**: ``C10`` to
+        ``C60`` (Quang, Gascuel & Lartillot 2008), the site-heterogeneous models the field writes
+        ``LG+C60``.
+
+        A profile is one set of amino-acid frequencies. A mixture is ``K`` of them, each with a
+        weight. When a gene evolves under the mixture, every site draws one profile by weight, once,
+        and evolves under this model's exchangeabilities over that profile's frequencies. So a
+        buried site can be hydrophobic and a surface site charged without a table of your own: that
+        table (`simulate_sequences(profiles=…)`) is the other way to say the same thing, site by
+        site, and the two are refused together.
+
+        Composes with `across_sites` in either order: ``lg().profile_mixture("C60")
+        .across_sites(gamma_shape=0.5)`` is ``LG+C60+G4``, a profile saying *which* residues and
+        the Gamma *how fast*. Protein models only: the profiles are amino-acid frequencies. The
+        profiles are ``profile_models`` and their weights ``profile_weights``; the run records
+        which profile each site drew (``profile_assignments``).
+
+        Returns a new model; the original is unchanged.
+        """
+        from ._profile_mixtures import MIXTURES
+        if self.profile_models:
+            raise ValueError(
+                f"{self.name} already carries a profile mixture, and a second one would have to "
+                f"say which of the two a site draws from. Start again from the plain model.")
+        if self.alphabet != AMINO_ACIDS:
+            raise ValueError(
+                f"a profile mixture is a set of amino-acid profiles, and {self.name} is a "
+                f"{len(self.alphabet)}-state model over {self.alphabet!r}. Start from a protein "
+                f"model: lg(), wag(), jtt(), dayhoff() or poisson().")
+        label = mixture.upper() if isinstance(mixture, str) else mixture
+        if label not in MIXTURES:
+            raise ValueError(
+                f"unknown profile mixture {mixture!r}; the published ones are "
+                f"{', '.join(MIXTURES)}.")
+        weights, rows = MIXTURES[label]
+        w = np.asarray(weights, dtype=float)
+        w = w / w.sum()
+        models = tuple(_with_frequencies(self, row, name=f"{self.name}+{label}[{i}]")
+                       for i, row in enumerate(rows, start=1))
+        return replace(self, name=f"{self.name}+{label}", profile_models=models,
+                       profile_weights=tuple(float(x) for x in w))
+
+
+#: the published profile mixtures `SubstitutionModel.profile_mixture` knows, by label
+PROFILE_MIXTURES: tuple[str, ...] = ("C10", "C20", "C30", "C40", "C50", "C60")
 
 
 def _with_frequencies(model: SubstitutionModel, frequencies, *, name: str) -> SubstitutionModel:
@@ -522,4 +600,5 @@ def encode(seq: str, alphabet: str = BASES) -> np.ndarray:
 
 
 __all__ = ["SubstitutionModel", "jc69", "k80", "hky85", "gtr", "reversible",
-           "poisson", "jtt", "dayhoff", "wag", "lg", "decode", "encode", "BASES", "AMINO_ACIDS"]
+           "poisson", "jtt", "dayhoff", "wag", "lg", "decode", "encode", "BASES", "AMINO_ACIDS",
+           "PROFILE_MIXTURES"]
