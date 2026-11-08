@@ -15,7 +15,10 @@ from zombi2.species import simulate_species_tree
 
 
 def _digest(r) -> str:
-    return hashlib.sha256(repr([(e.time, e.kind, e.family, e.copy) for e in r.edges]).encode()).hexdigest()[:12]
+    # times rounded to nine decimals: a lognormal draw goes through exp(), whose last bit differs
+    # between platforms' maths libraries, and that noise is not what this digest is about
+    return hashlib.sha256(repr([(round(e.time, 9), e.kind, e.family, e.copy)
+                                for e in r.edges]).encode()).hexdigest()[:12]
 
 
 @pytest.fixture(scope="module")
@@ -111,8 +114,8 @@ def test_two_laws_in_one_run_are_refused(tree):
 
 #: digests of runs that use today's draws, taken on an export of main (9d37d4f0): the shared cache
 #: the category law needs must not move any of them
-_BEFORE = {"family shared": "6335960b5e62", "parallel shared": "172480f2edbd",
-           "family lineages": "9d55dd7f239d", "ordered shared": "b8fac7a2132a"}
+_BEFORE = {"family shared": "a4cf3e70028f", "parallel shared": "dbd099d54791",
+           "family lineages": "3710a80059b3", "ordered shared": "2464fec2b300"}
 
 
 def test_runs_with_the_draws_of_before_are_byte_identical():
