@@ -72,6 +72,9 @@ class SpeciesResult:
                                                                        repr=False)
     #: the two rates as the run resolved them, so `lineage_rates` can evaluate a lineage's own.
     _rates: dict = field(default_factory=dict, repr=False)
+    #: ``{node id: the user's label}`` for a tree that came with labels of its own — the sampled tree
+    #: `add_hidden_lineages` completed (#480) — written to ``names.tsv``; empty for a grown tree.
+    names: dict[int, str] = field(default_factory=dict)
 
     def __repr__(self) -> str:
         fossils = f", {len(self.fossils)} fossils" if self.fossils else ""
@@ -203,6 +206,11 @@ class SpeciesResult:
             for i in sorted(self.complete_tree.leaves()):
                 rows.append(f"{name[i]}\t{self.complete_tree.nodes[i].fate}")
             (d / "species_fates.tsv").write_text("\n".join(rows) + "\n", encoding="utf-8")
+        if self.names:
+            # the join from every file back to the labels the tree came with, as a genomes run
+            # writes for a tree given with --from
+            rows = ["node\tname"] + [f"{name[i]}\t{label}" for i, label in sorted(self.names.items())]
+            (d / "names.tsv").write_text("\n".join(rows) + "\n", encoding="utf-8")
 
 
 
@@ -707,4 +715,7 @@ def birth_death(birth, death=0.0, *, n_extant=None, total_time=None) -> BirthDea
     return BirthDeath(birth, death, n_extant, total_time)
 
 
-__all__ = ["simulate_species_tree", "SpeciesResult", "Event", "BirthDeath", "birth_death"]
+from .hidden import add_hidden_lineages, fit_birth_death_rates   # noqa: E402  (built on the result above)
+
+__all__ = ["simulate_species_tree", "SpeciesResult", "Event", "BirthDeath", "birth_death",
+           "add_hidden_lineages", "fit_birth_death_rates"]

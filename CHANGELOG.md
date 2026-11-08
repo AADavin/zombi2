@@ -9,6 +9,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- Hidden lineages for a tree you already have: `species.add_hidden_lineages(sampled, birth=, death=, sampling=, stem=)` (`zombi2 species out/ --sampled-tree FILE --birth B --death D --sampling RHO [--stem S]`) adds the lineages a dated sampled tree does not show, extinct and alive-but-unsampled, under a birth–death process with sampling conditioned on the tree, so that pruning the result to its tips gives the input back exactly. The result is a species run: `species_complete.nwk`, `species_extant.nwk`, `species_fates.tsv`, `species_events.tsv`, and `names.tsv` with the input's labels. `species.fit_birth_death_rates(sampled, sampling=, death=)` estimates the rates from the tree. A validation check pins the attachments and the unsampled tips to their closed forms. (#480)
+
 ## [0.55.0] - 2026-11-08
 
 ### Added

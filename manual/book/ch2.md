@@ -53,6 +53,38 @@ By default you see every surviving species. **`sampling`** keeps a random fracti
 
 **`fossils`** recovers lineages from the past [@heath2014fossilized; @gavryushkina2014sampledancestor]. Fossils are sampled along **every** branch of the complete tree at a rate you set, so `fossils=0.1` scatters dated samples through its history. They are a side output, written to `species_fossils.tsv` beside the trees (Appendix B); a fossil does not remove its lineage and does not appear in the extant tree ([Sp8](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:sampling-->).
 
+## Hidden lineages for a tree you have
+
+Benchmark reconciliation transfers from hidden lineages using a real dated sampled tree. Growing trees loses the real tree. Reading trees supplies no hidden lineages.
+
+`species.add_hidden_lineages(sampled, birth=, death=, sampling=, stem=, seed=)` adds hidden lineages under a birth–death process conditioned on the sampled tree. Input tips must represent the present. Pruning to extant tips recovers the sampled tree exactly.
+
+Hidden lineages attach along every branch and the stem at the speciation rate leaving one daughter without sampled descendants. Each evolves conditioned on leaving no sampled descendants. Sampled surviving tips are extant. Surviving hidden lineages are unsampled. Hidden lineages that died are extinct. sampling specifies the probability that a survivor was sampled.
+
+`stem=` sets the root branch length above the crown. Otherwise, the input root branch remains.
+
+The result matches grown species tree objects: complete tree, extant tree, tip fates and events. The genomes level runs normally.
+
+`species.fit_birth_death_rates(sampled, sampling=, death=)` maximises likelihood given sampling. Supplying `death` fits birth alone. Otherwise, it fits both rates. Fix sampling: only two combinations of birth, death and sampling are identifiable.
+
+The function simulates benchmark hidden lineages. It does not estimate true hidden lineages. Recalibrate transfer rates because recipients now include hidden lineages.
+
+```python
+from zombi2 import genomes, species, tree
+
+sampled, names = tree.read_newick(open("mytree.nwk").read())
+birth, death = species.fit_birth_death_rates(sampled, sampling=0.27, death=0.0)
+result = species.add_hidden_lineages(sampled, birth=birth, death=death, sampling=0.27,
+                                     stem=0.1, seed=1, names=names)
+run = genomes.simulate_genomes_family(result.complete_tree, transfer=0.3, seed=1)
+```
+
+The command writes species files and `names.tsv` with input tip labels.
+
+```bash
+zombi2 species out/ --sampled-tree mytree.nwk --birth 1.0 --death 0.4 --sampling 0.27 --stem 0.1 --seed 1
+```
+
 ## On the command line
 
 The flags are the Python keywords: the base rates, the stop condition, and the sampling and fossil settings. Bare, `zombi2 species out/` runs the defaults the quickstart used: `birth` 1.0, stopping at 20 extant tips, every tip sampled. A varying rate goes on its flag in the written form, the same text Python takes.
