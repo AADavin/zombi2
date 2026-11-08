@@ -91,6 +91,33 @@ at a site, a Gamma says **how fast** sites change. `partitions=` is the same ide
 gene evolves as consecutive blocks of sites, each under its own model, `partitions=[(lg(), 100),
 (wag(), 200)]`. It replaces `model=` and `length=`, which it already answers.
 
+### Profile mixtures: C10 to C60
+
+A profile mixture is the standard way to give sites their own amino-acid frequencies without a table of your own. C10 to C60 provide published sets of 10 to 60 amino-acid profiles, each with a weight [@quang2008empirical]. These are the site-heterogeneous models the field writes as `LG+C60`. IQ-TREE and PhyloBayes use the same tables.
+
+In ZOMBI2, the mixture goes on the model: `lg().profile_mixture("C60")`. Every site of every family draws one profile by weight, once. The site then evolves under the model's exchangeabilities over that profile's frequencies. The draw follows the seed. Any protein model can supply the base, including `wag()` and `jtt()`. A nucleotide model refuses the mixture because these profiles give amino-acid frequencies.
+
+Profile mixtures compose with rate variation in either order. Adding `.across_sites(gamma_shape=0.5)` gives `LG+C60+G4`. The profile says which residues belong; the Gamma says how fast sites change. Every profile model normalises its rate to one expected substitution per site, so branch lengths keep their meaning.
+
+```python
+mixed = lg().profile_mixture("C60").across_sites(gamma_shape=0.5)   # LG+C60+G4
+seqs = sequences.simulate_sequences(my_genomes, model=mixed, length=300, seed=1)
+seqs.profile_assignments[0][:10]          # the profile each of the first ten sites drew
+```
+
+The run keeps the truth in `result.profile_assignments`, with the form `{family: (profile per site, ...)}`. Each entry gives the published profile number, from 1 to K, that each site drew, in site order. The `assignments` write token writes `profile_assignments.tsv` with columns `family`, `site` and `profile_number`. ZOMBI2 writes this file only when the run uses a mixture.
+
+Mixtures run on the parallel engine through `parallel=` and on streamed runs. Sites with the same profile evolve together. A family therefore costs one walk of its tree per profile, rather than per site.
+
+ZOMBI2 refuses a mixture with `profiles=` because both supply an answer to the same question. It also refuses mixtures with `partitions=`, a per-clade model set, indels, or a nucleotide genome run.
+
+On the command line, put `--mixture C60` beside `--model lg` and use `--gamma-shape` as before.
+
+```bash
+zombi2 sequences seqs/ --from out/ --model lg --mixture C60 --gamma-shape 0.5 \
+    --length 300 --seed 1
+```
+
 ## Insertions and deletions
 
 `insertion` and `deletion` give the sequences **indels**, so an alignment gains gaps: a lineage loses

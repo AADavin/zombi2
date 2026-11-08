@@ -48,7 +48,8 @@ def _evolve_one(task):
     """Evolve one family's gene tree and return its labelled outputs. Runs in a worker process (or
     inline); reads the shared partitions/models/clock from module state, keeps a per-worker CDF cache
     per model."""
-    from . import _evolve_partitions, _gene_newick, _scaled_gene_tree   # lazy: package, no cycle
+    from . import (_evolve_partitions, _gene_newick, _mixture_layout, _scaled_gene_tree,
+                   _unshuffle)   # lazy: package, no cycle
 
     family, flat, midx, length, rate, seed_states, seedseq = task
     # A family or ordered run's partitions are run-wide and came through the initializer; a
@@ -56,19 +57,27 @@ def _evolve_one(task):
     parts = _PARTS if _PARTS is not None else ((_MODELS[midx], length),)
     rng = np.random.default_rng(seedseq)
     gt = rebuild_gene_tree(flat)
+    # A profile mixture is the one per-family layout: each site draws its profile from this
+    # family's own stream, first thing, so the draw is as worker-count invariant as the rest.
+    layout = None
+    if _PARTS is not None and len(_PARTS) == 1 and getattr(_PARTS[0][0], "profile_models", ()):
+        parts, layout = _mixture_layout(_PARTS[0][0], _PARTS[0][1], rng)
     aln, anc, fnd = _evolve_partitions(gt, parts, rate, _CLOCK, rng, _CACHES, _NAMES,
                                        founding=seed_states)
+    if layout is not None:
+        aln, anc, fnd = _unshuffle(aln, anc, fnd, layout.inverse)
     scaled = _scaled_gene_tree(gt, rate, _CLOCK)             # branch lengths in subs/site
     ext = scaled.extant
     phylo = {"complete": _gene_newick(scaled.complete, _NAMES),
              "extant": _gene_newick(ext, _NAMES) if ext is not None else None}
-    return family, aln, anc, fnd, phylo
+    return family, aln, anc, fnd, phylo, None if layout is None else layout.profiles
 
 
 def evolve_families(gene_trees, per_block, model, intergene_model, length, rate_base, clock,
                     founding_seed, family_seeds, workers, progress, names, sink=None,
                     partitions=None, multipliers=None):
-    """Evolve every family concurrently and assemble the four output maps.
+    """Evolve every family concurrently and assemble the output maps: the four of every run, and
+    the profile each site drew when the model is a profile mixture (empty otherwise).
 
     ``family_seeds[i]`` is the spawned RNG stream for the *i*-th family in sorted order, so the family
     a result belongs to is fixed before any worker runs — the assignment is independent of which worker
@@ -107,15 +116,18 @@ def evolve_families(gene_trees, per_block, model, intergene_model, length, rate_
     ancestral: dict[int, dict[str, str]] = {}
     founding: dict[int, str] = {}
     phylograms: dict[int, dict[str, str | None]] = {}
+    assignments: dict[int, tuple[int, ...]] = {}
     bar = progress_bar(len(families), "sequences", unit="family", enabled=progress)
 
     def _collect(results):
-        for family, aln, anc, fnd, phylo in results:
+        for family, aln, anc, fnd, phylo, profiles in results:
             if sink is None:
                 alignments[family], ancestral[family] = aln, anc
                 founding[family], phylograms[family] = fnd, phylo
+                if profiles is not None:
+                    assignments[family] = profiles
             else:
-                sink(family, aln, anc, fnd, phylo)   # straight to disk; nothing is kept
+                sink(family, aln, anc, fnd, phylo, profiles)   # straight to disk; nothing is kept
             bar.update()
 
     n = len(families)
@@ -129,4 +141,4 @@ def evolve_families(gene_trees, per_block, model, intergene_model, length, rate_
         _init_worker(models, clock, names, partitions)
         _collect(_evolve_one(t) for t in tasks)
     bar.close()
-    return alignments, ancestral, founding, phylograms
+    return alignments, ancestral, founding, phylograms, assignments

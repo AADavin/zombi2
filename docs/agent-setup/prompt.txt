@@ -107,6 +107,7 @@ Without burn-in, `--initial-families` creates families of the same age.
 
 Sequences evolves sequences along each gene tree from a Genomes run.
 Nucleotide models are jc69, k80, hky85, gtr. Protein models are poisson, jtt, dayhoff, wag, lg.
+A protein model takes a published profile mixture, `--mixture C60` (Python: `lg().profile_mixture("C60")`), which draws each site's amino-acid frequencies from one of the mixture's profiles; the profile each site drew is in `profile_assignments.tsv`.
 Sequences also supports indels, site rate classes and relaxed clocks.
 
     zombi2 sequences seqs/ --from out/ --model gtr --frequencies 0.3 0.2 0.2 0.3 --seed 1 --write alignments phylograms species_phylogram summary ancestral

@@ -67,6 +67,10 @@ So each test here computes a quantity with a **closed form** and checks the run 
   ``2λ(1−ρ) Σ[J(a) − J(b)]`` on average — the two closed forms of the conditioned birth–death
   process with sampling, which a sampler that attached at the unconditioned rate, or let a hidden
   lineage behave as a sampled one, would miss;
+- a **profile mixture** draws each site's profile with its published weight, and the sites the run
+  says drew a profile carry that profile's composition: the recorded assignment against the realised
+  residues, which a layout that put the columns back in the wrong order, or a draw that ignored the
+  weights, would each miss;
 - **a driven rate realises the multiplier it was declared with** — on the conditioned path, on the
   joint one, and on the sequence level, where it is not statistical at all: a species-phylogram
   branch is the driven rate *integrated* over the branch, so when the driver switches part-way along,
@@ -1084,6 +1088,65 @@ def test_a_site_profile_governs_the_site_it_belongs_to():
         other = halves["peaked" if name == "flat" else "flat"][1]
         assert abs(_z(dominant, other[0])) > 20, (
             f"the {name} half's composition is not distinguishable from the other half's row")
+
+
+def test_a_profile_mixture_draws_by_weight_and_each_site_carries_the_profile_it_drew():
+    """`profile_mixture`: every site draws one of the published profiles with that profile's weight,
+    and the run says which (`profile_assignments`). Two things are worth proving, and the assignment
+    is what makes the second one checkable at all.
+
+    **The draw follows the weights.** Over all sites of a replicate, the share of sites the run
+    assigns to profile *c* is that profile's weight; a draw that was uniform, or read the weights of
+    another mixture, lands elsewhere.
+
+    **A site carries the profile it is said to have drawn.** The sites of one profile evolve as one
+    block and the columns are put back in site order afterwards, and the one thing that would go
+    wrong silently is that step: a layout put back in the wrong order still gives a well-formed
+    alignment with the right overall composition, since the mixture's mean composition is the same
+    whichever site has which profile. Only a per-profile expectation catches it. So the residues at
+    the sites the run assigns to profile *c* are compared with that profile's own frequencies — on
+    its dominant residue, the one number the counts support — and shown to be far from the
+    mixture's pooled composition at that residue, which is what a shuffled layout would show.
+
+    Every partition founds from its own profile's stationary frequencies, so the expectation holds
+    at any depth and no equilibration is assumed. ``C10`` is used because its ten profiles are the
+    most distinct, each with a dominant residue well above the pooled mean."""
+    model, length, reps = poisson().profile_mixture("C10"), 400, 8
+    k, n_profiles = model.k, len(model.profile_models)
+    table = _coder(model.alphabet)
+    weights = np.asarray(model.profile_weights)
+    profiles = np.array([m.stationary for m in model.profile_models])
+    pooled = weights @ profiles                              # the mixture's mean composition
+    dominant = profiles.argmax(axis=1)
+
+    shares = np.zeros((reps, n_profiles))
+    dominant_share = np.zeros((reps, n_profiles))
+    for seed in range(reps):
+        _tree, genomes = _one_copy_per_lineage(n_extant=10, families=4, seed=seed)
+        run = simulate_sequences(genomes, model=model, length=length, substitution=1.0, seed=seed)
+        counts = np.zeros(n_profiles)
+        residues = np.zeros((n_profiles, k))
+        for family in genomes.gene_trees:
+            drawn = np.asarray(run.profile_assignments[family]) - 1      # published numbering, 1 to K
+            counts += np.bincount(drawn, minlength=n_profiles)
+            for sequence in run.alignments[family].values():
+                coded = _codes(sequence, table)
+                for c in range(n_profiles):
+                    residues[c] += np.bincount(coded[drawn == c], minlength=k)
+        shares[seed] = counts / counts.sum()
+        dominant_share[seed] = residues[np.arange(n_profiles), dominant] / residues.sum(axis=1)
+
+    for c in range(n_profiles):
+        assert abs(_z(shares[:, c], weights[c])) < Z_MAX, (
+            f"profile {c + 1} is drawn for {shares[:, c].mean():.4f} of the sites but its weight is "
+            f"{weights[c]:.4f}")
+        letter = model.alphabet[dominant[c]]
+        assert abs(_z(dominant_share[:, c], profiles[c, dominant[c]])) < Z_MAX, (
+            f"at the sites assigned to profile {c + 1}, {letter} settles at "
+            f"{dominant_share[:, c].mean():.4f} but the profile says {profiles[c, dominant[c]]:.4f}")
+        assert abs(_z(dominant_share[:, c], pooled[dominant[c]])) > 6, (
+            f"the sites assigned to profile {c + 1} are not distinguishable from the pooled "
+            f"composition at {letter} — the columns may not be going back where they belong")
 
 
 def test_a_profile_keeps_the_chemistry_of_the_model_it_decorates():

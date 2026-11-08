@@ -501,13 +501,14 @@ internal nodes with the ancestral sequences.
 | `genome_<lineage>.fasta` | one file per node of the complete tree, one record `<lineage>_chr<c>` per chromosome, in `genomes/`. Nucleotide genome runs only |
 | `genome_initial.fasta` | the genome the run **started** with, as sequence. Nucleotide runs only |
 | `family_multipliers.tsv` | each family's substitution multiplier: `family` · `substitution`, one row per family |
+| `profile_assignments.tsv` | under a profile mixture (`lg().profile_mixture("C60")`), the published profile each site drew: `family` · `site` · `profile_number`, one row per site. Only when the model carries a mixture |
 | `sequences_summary.json` | `unit` (`family` or `block`), families with sequences, how many, sites min/max, `mean_pairwise_identity`, assembled genomes, the seed |
 | `conditioned_on` | the levels this run depended on as a driver. Only when the substitution rate was conditioned |
 
 From Python: `.alignments` · `.ancestral` (the sequences), `.genomes` · `.node_genomes` ·
 `.initial_genome` (the assembled genomes, present only when the run came from a **nucleotide**
-genome), `.founding` · `.phylograms` · `.species_phylogram` · `.family_multipliers`, and the driver
-views `.gc()` · `.composition(letters)`.
+genome), `.founding` · `.phylograms` · `.species_phylogram` · `.family_multipliers` ·
+`.profile_assignments`, and the driver views `.gc()` · `.composition(letters)`.
 
 **`family_multipliers.tsv`** is the same table the genome run writes, with the one rate this level
 draws among families. A substitution rate written with `varying_among("families", …)` draws one

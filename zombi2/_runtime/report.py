@@ -47,7 +47,7 @@ _DISPLAY_EXTRA = frozenset({"max_lineages", "fasta", "tip_fates"})
 
 #: A readable order for the parameters that do show — model choice first, then rates, then the rest
 #: (anything unlisted follows, alphabetically). Only affects display order.
-_PARAM_ORDER = ("resolution", "kind", "model", "birth", "death", "n_extant", "total_time", "sampling",
+_PARAM_ORDER = ("resolution", "kind", "model", "mixture", "birth", "death", "n_extant", "total_time", "sampling",
                 "fossils", "mass_extinction", "initial_families", "origination", "duplication",
                 "transfer", "loss", "transfer_to", "self_transfer", "replacement", "max_family_size",
                 "inversion", "chromosomes", "length", "divergence", "kappa", "frequencies",
@@ -103,6 +103,7 @@ _GLOSS = {
     "phylograms": "gene trees with branch lengths in substitutions/site, one per family",
     "phylograms.tsv": "every phylogram in one table, a row per family (family, complete, extant)",
     "sequences_founding.fasta": "the sequence each family (or block) originated with, before its stem — one record apiece",
+    "profile_assignments.tsv": "the profile each site of each family drew from the mixture (family, site, profile_number)",
     "genomes": "one assembled genome FASTA per node of the complete tree, plus the initial genome when it was written",
     # traits/
     "trait_tree.nwk": "the tree with every node's trait annotated ([&trait=…])",
