@@ -62,6 +62,11 @@ So each test here computes a quantity with a **closed form** and checks the run 
   duplication/loss, and the number of present families Poisson with mean
   origination · (1/duplication) · ln(loss/(loss − duplication)) — Kendall's and Fisher's results,
   which a burn-in that stopped early, or that counted its rates per the wrong unit, would miss;
+- the **hidden lineages** added to a fixed sampled tree attach as a Poisson process whose mean per
+  branch is ``2λ(a−b) − 2[B(a) − B(b)]``, and the survivors among them nobody sampled number
+  ``2λ(1−ρ) Σ[J(a) − J(b)]`` on average — the two closed forms of the conditioned birth–death
+  process with sampling, which a sampler that attached at the unconditioned rate, or let a hidden
+  lineage behave as a sampled one, would miss;
 - **a driven rate realises the multiplier it was declared with** — on the conditioned path, on the
   joint one, and on the sequence level, where it is not statistical at all: a species-phylogram
   branch is the driven rate *integrated* over the branch, so when the driver switches part-way along,
@@ -117,6 +122,7 @@ engine samples has changed.
 from __future__ import annotations
 
 import math
+import statistics
 import re
 from collections import Counter
 
@@ -424,6 +430,53 @@ def test_a_burn_in_reaches_the_logarithmic_series_and_the_poisson_family_count()
         observed = sizes[k] / total
         se_k = math.sqrt(expected * (1 - expected) / total)
         assert abs(observed - expected) < 4 * se_k, (k, observed, expected)
+
+
+def test_hidden_lineages_attach_and_survive_at_their_closed_form_rates():
+    """On a cherry of two tips of age 1, with no stem: the attachments on the two branches are
+    Poisson with mean ``2λ(a−b) − 2[B(a) − B(b)]`` each, ``B(t) = rt + log A(t)``, and the unsampled
+    tips have mean ``2λ(1−ρ) Σ [J(a) − J(b)]``, ``J(t) = (1 − e^(−rt)) / (r A(t))``."""
+    lam, mu, rho = 1.0, 0.4, 0.5
+    r_ = lam - mu
+
+    def A(t):
+        return math.exp(-r_ * t) + rho * lam * (1 - math.exp(-r_ * t)) / r_
+
+    def B(t):
+        return r_ * t + math.log(A(t))
+
+    def J(t):
+        return (1 - math.exp(-r_ * t)) / (r_ * A(t))
+    from zombi2.species import add_hidden_lineages
+    from zombi2.tree import read_newick
+    cherry, _ = read_newick("(a:1.0,b:1.0);")
+    expect_attach = 2 * (2 * lam * 1.0 - 2 * (B(1.0) - B(0.0)))
+    expect_unsampled = 2 * lam * (1 - rho) * 2 * (J(1.0) - J(0.0))
+    reps = 1500
+    attach, unsampled = [], []
+    for s in range(reps):
+        c = add_hidden_lineages(cherry, birth=lam, death=mu, sampling=rho, seed=s)
+        nodes = c.complete_tree.nodes
+
+        def has_extant(i):
+            st = [i]
+            while st:
+                k = st.pop()
+                if nodes[k].fate == "extant":
+                    return True
+                st.extend(nodes[k].children)
+            return False
+        # a speciation with an extant descendant is an attachment, except the one sampled split
+        attach.append(sum(1 for i, n in nodes.items() if n.children and has_extant(i)) - 1)
+        unsampled.append(len(c.complete_tree.unsampled_leaves()))
+    m = statistics.mean(attach)
+    assert abs(m - expect_attach) < 4 * math.sqrt(expect_attach / reps), (m, expect_attach)
+    v = statistics.variance(attach)
+    assert 0.8 * expect_attach < v < 1.25 * expect_attach, (v, expect_attach)      # Poisson
+    mu_u = statistics.mean(unsampled)
+    assert abs(mu_u - expect_unsampled) < 4 * statistics.stdev(unsampled) / math.sqrt(reps), \
+        (mu_u, expect_unsampled)
+
 
 
 def test_transfer_picks_its_recipient_uniformly():

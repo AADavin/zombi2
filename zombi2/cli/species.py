@@ -51,6 +51,14 @@ def _add_species_args(p: argparse.ArgumentParser) -> None:
                         "(default 100000; 0 lifts the guard)"),
 
     g = p.add_argument_group("sampling & fossils")
+    g.add_argument("--sampled-tree", metavar="FILE", dest="sampled_tree", default=None,
+                   help="a dated tree you already have, every tip at the present: add the hidden "
+                        "lineages it does not show (extinct, and alive but unsampled) under --birth, "
+                        "--death and --sampling, conditioned on the tree, so that pruning the result to "
+                        "its tips gives it back exactly; --stem sets the root branch above its crown")
+    g.add_argument("--stem", type=float, default=None, metavar="LENGTH",
+                   help="with --sampled-tree: the length of the root branch above the input's crown, "
+                        "where hidden lineages attach too (default: the input's own root branch)")
     g.add_argument("--sampling", type=float, default=1.0, metavar="RHO",
                    help="extant sampling probability ρ, 0<ρ≤1 (default 1.0 = all)")
     g.add_argument("--fossils", type=float, default=0.0, metavar="RATE",
@@ -75,7 +83,8 @@ def run(args, parser):
     # A bare `zombi2 species out/` runs: refusing taught nobody the shape of the command, and the
     # numbers are the part a newcomer has no way to guess. The chosen values are recorded in the log
     # and the report, so an invented default is visible there rather than shouted on the terminal.
-    defaults_used(args, birth=1.0, **({} if args.total_time is not None else {"n_extant": 20}))
+    if args.sampled_tree is None:
+        defaults_used(args, birth=1.0, **({} if args.total_time is not None else {"n_extant": 20}))
 
     # refuse up front if re-running would orphan a later level already in the run (unless --force)
     resolve_seed(args)                      # a run must be reproducible from its own log
@@ -86,10 +95,30 @@ def run(args, parser):
     mass_ext = [(t, f) for t, f in args.mass_extinction] if args.mass_extinction else None
 
     t0 = time.perf_counter()
-    result = simulate_species_tree(
-        birth=args.birth, death=args.death, n_extant=args.n_extant, total_time=args.total_time,
-        mass_extinctions=mass_ext, sampling=args.sampling, fossils=args.fossils, seed=args.seed,
-        progress=not args.quiet, max_lineages=args.max_lineages or None)
+    if args.sampled_tree is not None:
+        # the hidden lineages of a tree the user has (#480): a mode of this command, since what it
+        # writes is a species run, the given tree being the extant one
+        for flag, value, default in (("--n-extant", args.n_extant, None), ("--total-time", args.total_time, None),
+                                     ("--fossils", args.fossils, 0.0), ("--mass-extinction", args.mass_extinction, None)):
+            if value not in (default, []):
+                parser.error(f"--sampled-tree takes the tree as given, so {flag} does not apply")
+        if args.birth is None:
+            parser.error("--sampled-tree needs --birth (and --death) for the hidden lineages; "
+                         "zombi2.species.fit_birth_death_rates estimates them from the tree")
+        from zombi2.species import add_hidden_lineages
+        from zombi2.tree import read_newick
+        with open(args.sampled_tree, encoding="utf-8") as f:
+            sampled, names = read_newick(f.read())
+        result = add_hidden_lineages(sampled, birth=args.birth, death=args.death,
+                                     sampling=args.sampling, stem=args.stem, seed=args.seed,
+                                     names=names)
+    else:
+        if args.stem is not None:
+            parser.error("--stem applies with --sampled-tree; a grown tree's stem is the run's own")
+        result = simulate_species_tree(
+            birth=args.birth, death=args.death, n_extant=args.n_extant, total_time=args.total_time,
+            mass_extinctions=mass_ext, sampling=args.sampling, fossils=args.fossils, seed=args.seed,
+            progress=not args.quiet, max_lineages=args.max_lineages or None)
 
     clear_stale_downstream(args, "species")   # --force: drop the now-stale downstream (run succeeded)
     os.makedirs(args.run, exist_ok=True)
