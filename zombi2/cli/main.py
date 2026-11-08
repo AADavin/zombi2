@@ -41,6 +41,12 @@ def _route_library_warnings_to_stderr() -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(errors="replace")
+            except Exception:
+                pass
     _route_library_warnings_to_stderr()
     parser = argparse.ArgumentParser(
         prog="zombi2", description=_banner() + "\n\n" + _DESCRIPTION,

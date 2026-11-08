@@ -9,6 +9,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Fixed
+
+- Fall back to `->` and `<-` when the terminal or stream cannot encode Unicode arrows, and reconfigure standard streams with error replacement at the CLI entry point so runs on Windows consoles with legacy encodings (like `cp1252`) do not crash in the closing report. (#484)
+
 ## [0.56.0] - 2026-11-08
 
 ### Added

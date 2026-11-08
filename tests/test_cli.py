@@ -2520,3 +2520,26 @@ def test_an_indel_flag_is_refused_where_it_means_nothing(tmp_path, resolution, f
     run = _indel_tree(tmp_path)
     with pytest.raises(SystemExit):
         main(["genomes", str(run), "--resolution", resolution, flag, "1", "--seed", "1", "--quiet"])
+
+
+def test_cli_handles_cp1252_stdout_without_crashing(tmp_path, monkeypatch):
+    """On consoles or pipes with cp1252/ascii encoding, signpost arrows fall back to -> and <-."""
+    import io
+    import sys
+
+    class Cp1252Stream(io.StringIO):
+        encoding = "cp1252"
+
+        def write(self, s):
+            s.encode("cp1252")
+            return super().write(s)
+
+    fake_stdout = Cp1252Stream()
+    monkeypatch.setattr(sys, "stdout", fake_stdout)
+
+    code = main(["species", str(tmp_path), "--birth", "1", "--death", "0.3", "--n-extant", "8", "--seed", "1"])
+    assert code == 0
+    out = fake_stdout.getvalue()
+    assert "->" in out
+    assert "<-" in out
+    assert "run.zombi2" in out

@@ -281,6 +281,16 @@ def level_dir(output: str, level: str, flat: bool) -> str:
     return path
 
 
+def _glyph(char: str, fallback: str) -> str:
+    """Return ``char`` if ``sys.stdout`` can encode it, or ``fallback`` if the stream's codec cannot."""
+    encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+    try:
+        char.encode(encoding)
+        return char
+    except (UnicodeEncodeError, LookupError):
+        return fallback
+
+
 def guidance(args, *looks: str) -> None:
     """One or more one-line pointers printed after a run — the file(s) worth looking at, for someone
     finding their way around a run. It only says *what was written and where*, never what to do next
@@ -288,8 +298,9 @@ def guidance(args, *looks: str) -> None:
     suppressed by ``--quiet`` (a scripted batch stays quiet); the ``wrote …`` summary still prints."""
     if getattr(args, "quiet", False):
         return
+    arrow = _glyph("→", "->")
     for look in looks:
-        print(f"  → {look}")
+        print(f"  {arrow} {look}")
 
 
 def signpost(args, report_path, *level_dirs) -> None:
@@ -301,12 +312,15 @@ def signpost(args, report_path, *level_dirs) -> None:
     if getattr(args, "quiet", False):
         return
     from zombi2._runtime.report import output_signposts
+    arrow_r = _glyph("→", "->")
+    arrow_l = _glyph("←", "<-")
+    dot = _glyph("·", "-")
     for d in dict.fromkeys(level_dirs):              # dedup: --flat collapses every level into one dir
         names = [name for name, _gloss in output_signposts(d)]
         if names:
-            print(f"  → {d}/  " + " · ".join(names))
+            print(f"  {arrow_r} {d}/  " + f" {dot} ".join(names))
     if report_path:
-        print(f"  → {report_path}  ← open this first: a report of every file, and how to reproduce")
+        print(f"  {arrow_r} {report_path}  {arrow_l} open this first: a report of every file, and how to reproduce")
 
 
 def defaults_used(args, **fallbacks) -> None:
