@@ -2520,3 +2520,34 @@ def test_an_indel_flag_is_refused_where_it_means_nothing(tmp_path, resolution, f
     run = _indel_tree(tmp_path)
     with pytest.raises(SystemExit):
         main(["genomes", str(run), "--resolution", resolution, flag, "1", "--seed", "1", "--quiet"])
+
+
+def test_a_console_that_cannot_encode_the_arrows_gets_ascii_stand_ins(tmp_path, monkeypatch):
+    """A Windows console on cp1252 (#484): the closing lines swap the arrows and dots for ASCII
+    instead of failing after the files are written; a UTF-8 console keeps the glyphs."""
+    import io
+    import sys
+
+    class Cp1252(io.StringIO):
+        encoding = "cp1252"
+
+        def write(self, s):
+            s.encode("cp1252")                      # what the real console would refuse
+            return super().write(s)
+
+    narrow = Cp1252()
+    monkeypatch.setattr(sys, "stdout", narrow)
+    assert main(["species", str(tmp_path / "a"), "--birth", "1", "--death", "0.3", "--n-extant", "8",
+                 "--seed", "1"]) == 0
+    out = narrow.getvalue()
+    assert "wrote " in out and "->" in out and "<-" in out and "run.zombi2" in out
+    assert "→" not in out and "·" not in out
+
+    class Utf8(io.StringIO):
+        encoding = "utf-8"
+
+    wide = Utf8()
+    monkeypatch.setattr(sys, "stdout", wide)
+    assert main(["species", str(tmp_path / "b"), "--birth", "1", "--death", "0.3", "--n-extant", "8",
+                 "--seed", "1"]) == 0
+    assert "→" in wide.getvalue() and "->" not in wide.getvalue()

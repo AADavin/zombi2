@@ -9,6 +9,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Fixed
+
+- The lines the command line prints after a run (`→ run.zombi2 ← open this first`) swap their arrows and dots for ASCII where the console cannot encode them, instead of ending a finished run with a `'charmap' codec` error on a Windows console. (#486)
+
 ## [0.57.0] - 2026-11-08
 
 ### Added

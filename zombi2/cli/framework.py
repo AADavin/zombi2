@@ -267,7 +267,7 @@ def print_wrote(run: str, summary: str, t0: float) -> None:
     actually waiting on. One helper for all five commands, so the reported time cannot mean the
     simulation in one and the whole command in another.
     """
-    print(f"wrote {run}/ ({summary}) in {time.perf_counter() - t0:.3g} s")
+    say(f"wrote {run}/ ({summary}) in {time.perf_counter() - t0:.3g} s")
 
 
 def level_dir(output: str, level: str, flat: bool) -> str:
@@ -281,6 +281,23 @@ def level_dir(output: str, level: str, flat: bool) -> str:
     return path
 
 
+#: the stand-ins a console that cannot encode the glyphs gets instead (a Windows console on cp1252)
+_ASCII_STAND_INS = str.maketrans({"→": "->", "←": "<-", "·": "-", "…": "..."})
+
+
+def say(text: str) -> None:
+    """``print`` for the lines the CLI shows after a run. The arrows and dots are kept where the
+    console can encode them, and swapped for ASCII stand-ins where it cannot, so a Windows console
+    on a legacy code page sees ``->`` instead of a ``'charmap' codec`` error after the files are
+    already written (#484)."""
+    encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+    try:
+        text.encode(encoding)
+    except (UnicodeEncodeError, LookupError):
+        text = text.translate(_ASCII_STAND_INS)
+    print(text)
+
+
 def guidance(args, *looks: str) -> None:
     """One or more one-line pointers printed after a run — the file(s) worth looking at, for someone
     finding their way around a run. It only says *what was written and where*, never what to do next
@@ -289,7 +306,7 @@ def guidance(args, *looks: str) -> None:
     if getattr(args, "quiet", False):
         return
     for look in looks:
-        print(f"  → {look}")
+        say(f"  → {look}")
 
 
 def signpost(args, report_path, *level_dirs) -> None:
@@ -304,9 +321,9 @@ def signpost(args, report_path, *level_dirs) -> None:
     for d in dict.fromkeys(level_dirs):              # dedup: --flat collapses every level into one dir
         names = [name for name, _gloss in output_signposts(d)]
         if names:
-            print(f"  → {d}/  " + " · ".join(names))
+            say(f"  → {d}/  " + " · ".join(names))
     if report_path:
-        print(f"  → {report_path}  ← open this first: a report of every file, and how to reproduce")
+        say(f"  → {report_path}  ← open this first: a report of every file, and how to reproduce")
 
 
 def defaults_used(args, **fallbacks) -> None:
