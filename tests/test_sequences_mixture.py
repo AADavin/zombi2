@@ -7,13 +7,11 @@ the sites of a profile really carry its frequencies is a validation check, in ``
 here the plumbing: composition with `across_sites`, both engines, the table, recording, refusals."""
 
 import collections
-import pathlib
-import subprocess
-import sys
 
 import numpy as np
 import pytest
 
+from zombi2.cli.main import main
 from zombi2.genomes import simulate_genomes_family
 from zombi2.sequences import simulate_sequences
 from zombi2.sequences._profile_mixtures import MIXTURES
@@ -163,28 +161,29 @@ def test_what_a_mixture_is_refused_with(genomes):
         simulate_sequences(genomes, model=clades, length=20, seed=1)
 
 
-def test_the_command_line_takes_the_mixture(tmp_path):
-    def zombi2(*args):
-        return subprocess.run([sys.executable, "-m", "zombi2.cli.main", *args],
-                              capture_output=True, text=True)
+def test_the_command_line_takes_the_mixture(tmp_path, capsys):
+    """In-process, as `test_cli.py` drives the command: a child process on Windows writes its
+    report through the console codec, which cannot encode the arrows the CLI prints."""
     out = tmp_path / "run"
-    assert zombi2("species", str(out), "--birth", "1.0", "--n-extant", "6", "--seed", "1").returncode == 0
-    assert zombi2("genomes", str(out), "--duplication", "0.1", "--loss", "0.2", "--origination", "0.3",
-                  "--initial-families", "5", "--seed", "1").returncode == 0
-    done = zombi2("sequences", str(out), "--model", "lg", "--mixture", "c20", "--gamma-shape", "0.7",
-                  "--length", "30", "--seed", "2")
-    assert done.returncode == 0, done.stderr
-    assert "LG+C20+G4" in done.stdout
-    rows = (out / "sequences" / "profile_assignments.tsv").read_text().splitlines()
+    assert main(["species", str(out), "--birth", "1.0", "--n-extant", "6", "--seed", "1"]) == 0
+    assert main(["genomes", str(out), "--duplication", "0.1", "--loss", "0.2", "--origination", "0.3",
+                 "--initial-families", "5", "--seed", "1"]) == 0
+    capsys.readouterr()
+    assert main(["sequences", str(out), "--model", "lg", "--mixture", "c20", "--gamma-shape", "0.7",
+                 "--length", "30", "--seed", "2"]) == 0
+    assert "LG+C20+G4" in capsys.readouterr().out
+    rows = (out / "sequences" / "profile_assignments.tsv").read_text(encoding="utf-8").splitlines()
     assert rows[0] == "family\tsite\tprofile_number" and len(rows) > 1
-    log = (out / "sequences" / "sequences.log").read_text()
+    log = (out / "sequences" / "sequences.log").read_text(encoding="utf-8")
     assert "mixture\tC20" in log                    # the log reproduces the run
-    bad = zombi2("sequences", str(out), "--model", "hky85", "--mixture", "C10", "--length", "30",
-                 "--seed", "2", "--force")
-    assert bad.returncode != 0 and "needs a protein model" in bad.stderr
-    typo = zombi2("sequences", str(out), "--model", "lg", "--mixture", "C70", "--length", "30",
-                  "--seed", "2", "--force")
-    assert typo.returncode != 0 and "invalid choice" in typo.stderr
+    with pytest.raises(SystemExit) as bad:
+        main(["sequences", str(out), "--model", "hky85", "--mixture", "C10", "--length", "30",
+              "--seed", "2", "--force"])
+    assert bad.value.code != 0 and "needs a protein model" in capsys.readouterr().err
+    with pytest.raises(SystemExit) as typo:
+        main(["sequences", str(out), "--model", "lg", "--mixture", "C70", "--length", "30",
+              "--seed", "2", "--force"])
+    assert typo.value.code != 0 and "invalid choice" in capsys.readouterr().err
 
 
 def test_a_run_without_a_mixture_is_unchanged(genomes):
