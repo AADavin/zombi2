@@ -63,6 +63,14 @@ That command and the version it ran under are the whole record.
   values can differ around the sixteenth significant digit. Nothing discrete depends on that, which
   is why the digests are taken at nine significant digits.
 
+- **Not bit-identical floating point across Python versions.** Python 3.12's compensated `sum()` can
+  shift sums and event times at the sixteenth significant digit versus earlier Python. ZOMBI2 uses
+  `sum()` for rates drawn per lineage or gene family. Through 0.57.1, that included trait-driven
+  rates in `simulate_genomes_family`. Since 0.58.0, those use a Python-independent fixed order. Three
+  0.57.1 runs of 1,256–2,792 events matched events and order on Python 3.10 and 3.12. At most four
+  event times differed per run, by about one part in 10¹⁶. Nine-significant-digit digests match
+  across supported Python versions, preserving the guarantee.
+
 ## Reproducing someone else's run
 
 ```bash
