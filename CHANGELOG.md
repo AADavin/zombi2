@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.58.0] - 2026-11-21
+
 ### Changed
 
 - `simulate_genomes_family` with a rate that differs between lineages, through a driver (`scaled_by`, `set_by`) or a per-lineage draw, no longer re-evaluates that rate on every lineage at every event. Each lineage's weight is kept and rebuilt when its own genome or its own driver changes, on the serial engine and on the per-family one (`parallel=`, `stream_to=`), origination included. A trait-driven run of 200 tips takes 0.8 s where it took 24 s, and its cost per event no longer grows with the tree. A run that reads a driver now adds those weights in pairs, so event times can differ in their last digit and the same seed can give a different run than it did; with the sums taken left to right it is byte for byte the 0.57.1 run. A run that reads no driver is unchanged. (#488)
