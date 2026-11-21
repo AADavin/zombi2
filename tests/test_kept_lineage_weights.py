@@ -191,8 +191,11 @@ def test_every_kept_weight_matches_one_built_afresh(world, monkeypatch):
 
 # --- and so the run is the run it was -------------------------------------------------------------
 
-#: Taken on an export of main at 0.57.1 (a66b2dff), serial engine then per-family engine.
-_BEFORE = {
+#: Taken on an export of main at 0.57.1 (a66b2dff): the serial engine, then the per-family one.
+#: Twice, because the old loop added its weights with ``sum()``, and Python 3.12 made ``sum()`` of
+#: floats a compensated one: the same list can add up to a float one digit away on 3.11. So 0.57.1
+#: itself made two runs, by Python version, and each is the one to compare with.
+_BEFORE_312 = {
     "a trait on duplication and loss": ("e2517460a321", "b5d56ffce2ee"),
     "a continuous trait, stepped": ("d8bf0831620d", "2e302820edd2"),
     "transfer and origination": ("f0be955f1627", "b2595fc91b67"),
@@ -211,6 +214,26 @@ _BEFORE = {
     "a family's own driven rate": ("f4f0483a13ee", None),
     "both driven": ("d15df3f3172e", None),
 }
+_BEFORE_311 = {
+    "a trait on duplication and loss": ("e2517460a321", "0bc6535ce564"),
+    "a continuous trait, stepped": ("e2132bcb4ca7", "e7434f1fcca3"),
+    "transfer and origination": ("f0be955f1627", "bdda3a02154a"),
+    "a family draw beside it": ("7b42d554781a", "07a7d069dc9b"),
+    "a family draw on it": ("7a248543bcbf", "71f8a5525b6e"),
+    "a schedule on it": ("00feabcd3f9e", "93821f415508"),
+    "a per-lineage scope": ("6ad4c4b2dd9c", "96d727220cbd"),
+    "replacing transfers to oneself": ("4d3e6c7ab8b9", "fd1637cb9edd"),
+    "a per-lineage draw on it": ("b7afa5485b63", "8f731e2adf93"),
+    "per-lineage draws": ("676f26ab97bf", "83618d2f7381"),
+    "a per-lineage and a per-family draw": ("8cca57f4c274", "3b218906e3e1"),
+    "plain numbers": ("153ae959d10d", "ffa8d8dd72aa"),
+    "a per-family draw": ("930fb71bee3e", "315c4c508cca"),
+    "a schedule": ("12d6ded0bea5", "f8f202276e58"),
+    "a family's own number": ("c49e5db9e468", None),
+    "a family's own driven rate": ("f4f0483a13ee", None),
+    "both driven": ("d15df3f3172e", None),
+}
+_BEFORE = _BEFORE_312 if sys.version_info >= (3, 12) else _BEFORE_311
 
 
 def test_with_sums_left_to_right_a_driven_run_is_the_run_it_was(world, monkeypatch):
