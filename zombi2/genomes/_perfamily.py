@@ -54,7 +54,7 @@ from .._runtime.progress import progress_bar
 from ..params.evaluate import drawn_categories, values_at_birth
 from .multipliers import categorical_laws
 from ..rng import seed_sequence
-from ._live import enter, retire, weighted_index
+from ._live import DriverSwitches, SummedWeights, WeightedIndex, enter, retire
 from ._transfer import mean_root_to_tip, recipient_index
 from .events import EVENTS_HEADER, GeneEdge, event_rows, gene_label, node_label
 from .._runtime.outputs import COMPACT_FILES, fresh_dirs, tree_table_header
@@ -117,48 +117,77 @@ def _enumerate_families(tree, org, initial_families, families_named, placed, rng
     enter(alive, dummy, pos, tree.root, None)
     t = t0
     si = 0
+
+    # A driven origination, or one varying among lineages, weighs every living lineage, and here a
+    # lineage's weight never follows its genome (``copies=0``): it moves when a driver switches on
+    # that branch, and every one moves at a breakpoint of the schedule. So the weights are kept
+    # between events and rebuilt only where that happened, as the family loops keep theirs (#487).
+    # A run that reads a driver takes `WeightedIndex` (no walk over the lineages, last digits may
+    # move); one with only per-lineage draws takes `SummedWeights` and stays bit for bit what it was.
+    weighed = bool(driven) or lineage_factor is not None
+    weights = (WeightedIndex() if driven else SummedWeights()) if weighed else None
+    switches = DriverSwitches(trajs) if driven else None
+    stale: set[int] = set()
+    stale_all = True
+    skyline_next = -math.inf
+    if weights is not None:
+        weights.append(0.0)
+    if switches is not None:
+        switches.entered(tree.root, t)
+
+    def weight(k: int) -> float:
+        if driven and lineage_factor is not None:
+            return org.effective(copies=0, lineages=1, time=t,
+                                 drivers={key: trajs[key].value(alive[k], t) for key in trajs},
+                                 carried_factor=lineage_factor[alive[k]])
+        if driven:
+            return org.effective(copies=0, lineages=1, time=t,
+                                 drivers={key: trajs[key].value(alive[k], t) for key in trajs})
+        return org.effective(copies=0, lineages=1, time=t, carried_factor=lineage_factor[alive[k]])
+
     while si < len(schedule):
         k_alive = len(alive)
-        weights = None
-        if driven and lineage_factor is not None:
-            weights = [org.effective(copies=0, lineages=1, time=t,
-                                     drivers={key: trajs[key].value(alive[k], t) for key in trajs},
-                                     carried_factor=lineage_factor[alive[k]])
-                       for k in range(k_alive)]
-        elif driven:
-            weights = [org.effective(copies=0, lineages=1, time=t,
-                                     drivers={key: trajs[key].value(alive[k], t) for key in trajs})
-                       for k in range(k_alive)]
-        elif lineage_factor is not None:
-            weights = [org.effective(copies=0, lineages=1, time=t,
-                                     carried_factor=lineage_factor[alive[k]])
-                       for k in range(k_alive)]
         if weights is not None:
-            rate = sum(weights)
+            if switches is not None:
+                stale.update(switches.due(t, pos))
+            for k in (range(k_alive) if stale_all or t >= skyline_next
+                      else [pos[i] for i in stale if i in pos]):
+                weights.set(k, weight(k))
+            stale.clear()
+            stale_all = False
+            rate = weights.total
         else:
             rate = org.effective(copies=0, lineages=k_alive, time=t)
         next_species = schedule[si][0]
-        horizon = min(next_species, org.next_change(t))
-        if driven:      # the driver switching on a branch changes the rate: stop and re-evaluate
-            horizon = min(horizon, min((trajs[key].next_change(alive[k], t) for key in trajs
-                                        for k in range(k_alive)), default=math.inf))
+        skyline_next = org.next_change(t)
+        horizon = min(next_species, skyline_next)
+        if switches is not None:  # the driver switching on a branch changes the rate: stop there
+            horizon = min(horizon, switches.next(pos))
         if rate > 0.0:
             t_ev = t + float(rng.exponential(1.0 / rate))
             if t_ev < horizon:
                 t = t_ev
                 # origination is per lineage: uniform, or with the driver's weights when conditioned
-                k = int(rng.integers(k_alive)) if weights is None else weighted_index(rng, weights, rate)
+                k = int(rng.integers(k_alive)) if weights is None else weights.pick(rng)
                 families.append((fid, alive[k], t)); fid += 1
                 continue
         if horizon == next_species:
             t = next_species
             while si < len(schedule) and schedule[si][0] == t:
                 i = schedule[si][1]
-                retire(alive, dummy, pos, pos[i])
+                k_out = pos[i]
+                retire(alive, dummy, pos, k_out)
+                if weights is not None:
+                    weights.remove(k_out)             # the same swap-remove
                 node = tree.nodes[i]
                 if node.children:
                     for c in node.children:
                         enter(alive, dummy, pos, c, None)
+                        if weights is not None:
+                            weights.append(0.0)       # weighed on the next pass
+                            stale.add(c)
+                        if switches is not None:
+                            switches.entered(c, t)
                 si += 1
         else:
             t = horizon
@@ -318,30 +347,67 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
     # shared by every family passing through it. Drawn in the parent and shipped in `ctx`, so every
     # family reads the same branch factors whatever the worker count.
     lin_mult, varying = ctx.lin_mult, ctx.varying
-    any_lineage = bool(lin_mult)
 
     mult = _family_mults(rng, fam_by)
     m_dup, m_tra, m_los = mult["duplication"], mult["transfer"], mult["loss"]
 
-    def weigh(key, rate, family_mult, values, t):
-        """One rate on every lineage the family occupies, times the family's own multiplier.
+    def weight(key, rate, family_mult, k):
+        """One rate on one lineage the family occupies, times the family's own multiplier.
 
-        Three shapes rather than one context built per lineage, because this runs once per rate per
-        event: a driven rate reads the branch's driver, a rate varying among lineages reads the
-        branch's drawn factor, and a rate doing both reads both. The driven-only shape is the
-        expression it always was, so a conditioned run is unchanged to the last bit. ``alive`` and
-        ``gen`` are the loop's own arrays, mutated in place, so they are read rather than passed."""
+        Three shapes rather than one context built per lineage: a driven rate reads the branch's
+        driver, a rate varying among lineages reads the branch's drawn factor, and a rate doing both
+        reads both. Each is the expression the loop wrote when it rebuilt every weight at every
+        event. ``alive``, ``gen``, ``values`` and ``t`` are the loop's own, read rather than passed."""
         table = lin_mult[key] if varying[key] else None
-        if table is None:                          # driven only — why `weigh` was called at all
-            return [rate.effective(copies=len(gen[k]), lineages=1, time=t, drivers=values[k])
-                    * family_mult for k in range(len(alive))]
+        if table is None:                          # driven only
+            return (rate.effective(copies=len(gen[k]), lineages=1, time=t, drivers=values[k])
+                    * family_mult)
         if not driven[key]:
-            return [rate.effective(copies=len(gen[k]), lineages=1, time=t,
-                                   carried_factor=table[alive[k]])
-                    * family_mult for k in range(len(alive))]
-        return [rate.effective(copies=len(gen[k]), lineages=1, time=t, drivers=values[k],
-                               carried_factor=table[alive[k]])
-                * family_mult for k in range(len(alive))]
+            return (rate.effective(copies=len(gen[k]), lineages=1, time=t,
+                                   carried_factor=table[alive[k]]) * family_mult)
+        return (rate.effective(copies=len(gen[k]), lineages=1, time=t, drivers=values[k],
+                               carried_factor=table[alive[k]]) * family_mult)
+
+    # --- per-lineage weights, kept between events (#487) -------------------------------------------
+    # A rate that differs between lineages is summed over the lineages the family occupies and the
+    # affected one drawn with the same weights. Rebuilt at every event, that is one rate evaluation
+    # per occupied lineage per event, so a widespread family slowed with the tree. Between events
+    # one lineage changes: the one the event landed on, or the one a driver switched on. So the
+    # weights are held in `alive` order; a lineage is marked (`stale`, by node id) when its copies or
+    # its driver change, and every one is rebuilt at a breakpoint of a schedule. What holds them
+    # follows the serial loop: `WeightedIndex` when a driver is read (no walk over the lineages, and
+    # last digits may move), `SummedWeights` when only per-lineage draws are (bit for bit as before).
+    kept = {key: (WeightedIndex() if any_driven else SummedWeights())
+            for key in ("duplication", "loss", "transfer") if driven[key] or varying[key]}
+    kept_rates = [(key, rate, family_mult) for key, rate, family_mult in (
+        ("duplication", dup, m_dup), ("loss", los, m_los), ("transfer", tra, m_tra)) if key in kept]
+    by_lineage = bool(kept)
+    values: list = []                              # each occupied lineage's driver values
+    switches = DriverSwitches(trajs) if any_driven else None
+    stale: set[int] = set()
+    stale_all = True
+    skyline_next = -math.inf
+    t = time
+
+    def joined(node_id: int) -> None:
+        """A lineage has entered the footprint (`enter`): room for its weights, to be built next pass."""
+        if not by_lineage:
+            return
+        for held in kept.values():
+            held.append(0.0)
+        values.append({})
+        stale.add(node_id)
+        if switches is not None:
+            switches.entered(node_id, t)
+
+    def left(k: int) -> None:
+        """The lineage at ``k`` has left the footprint (`retire`): the same swap-remove."""
+        if not by_lineage:
+            return
+        for held in kept.values():
+            held.remove(k)
+        values[k] = values[-1]
+        values.pop()
 
     events: list[GeneEdge] = []
     node_genomes: dict[int, list] = {}
@@ -368,6 +434,7 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
     founding = new_copy(family)                             # the founding gene (local id 0)
     events.append(GeneEdge(time, "origination", lineage, family, founding.id))
     enter(alive, gen, pos, lineage, [founding])
+    joined(lineage)
     heapq.heappush(heap, (tree.nodes[lineage].end_time, lineage))
 
     # the contemporaneous lineage set (all lineages alive now), maintained by two pointers as t rises —
@@ -392,7 +459,6 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
         j = bisect.bisect_right(cross2, t)
         return cross2[j] if j < len(cross2) else math.inf
 
-    t = time
     total = 1
     while alive:
         advance_contemp(t)
@@ -404,29 +470,37 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
         # would say one thing and the picking another. The undriven rates stay pooled, so a run with
         # no conditioning does exactly the arithmetic it did before.
         w_dup = w_los = w_tra = None
-        if (any_driven or any_lineage) and alive:
-            values = ([{key: trajs[key].value(alive[k], t) for key in trajs}
-                       for k in range(len(alive))] if any_driven else None)
-            if driven["duplication"] or varying["duplication"]:
-                w_dup = weigh("duplication", dup, m_dup, values, t)
-            if driven["loss"] or varying["loss"]:
-                w_los = weigh("loss", los, m_los, values, t)
-            if (driven["transfer"] or varying["transfer"]) and can_xfer:
-                w_tra = weigh("transfer", tra, m_tra, values, t)
-        r_dup = (sum(w_dup) if w_dup is not None else
+        if by_lineage:
+            # what is out of date: the lineages an event or an arrival marked, the ones a driver has
+            # just switched on, and every one of them at a breakpoint of a schedule
+            if switches is not None:
+                stale.update(switches.due(t, pos))
+            for k in (range(len(alive)) if stale_all or t >= skyline_next
+                      else [pos[i] for i in stale if i in pos]):
+                if any_driven:
+                    values[k] = {key: trajs[key].value(alive[k], t) for key in trajs}
+                for key, rate, family_mult in kept_rates:
+                    kept[key].set(k, weight(key, rate, family_mult, k))
+            stale.clear()
+            stale_all = False
+            w_dup, w_los = kept.get("duplication"), kept.get("loss")
+            if can_xfer:
+                w_tra = kept.get("transfer")
+        r_dup = (w_dup.total if w_dup is not None else
                  dup.effective(copies=total, lineages=1, time=t) * m_dup if total else 0.0)
-        r_los = (sum(w_los) if w_los is not None else
+        r_los = (w_los.total if w_los is not None else
                  los.effective(copies=total, lineages=1, time=t) * m_los if total else 0.0)
-        r_tra = (sum(w_tra) if w_tra is not None else
+        r_tra = (w_tra.total if w_tra is not None else
                  tra.effective(copies=total, lineages=1, time=t) * m_tra if can_xfer else 0.0)
         rate_total = r_dup + r_los + r_tra
 
         next_struct = next_valid_end()
-        horizon = min(next_struct, dup.next_change(t), los.next_change(t), tra.next_change(t),
-                      next_cross2(t))
-        if any_driven:   # a driven rate also changes when the driver switches on an occupied branch
-            horizon = min(horizon, min((trajs[key].next_change(alive[k], t) for key in trajs
-                                        for k in range(len(alive))), default=math.inf))
+        # a schedule's next breakpoint moves every lineage's rate at once, so it is kept apart:
+        # arriving at it is what marks every kept weight out of date
+        skyline_next = min(dup.next_change(t), los.next_change(t), tra.next_change(t))
+        horizon = min(next_struct, skyline_next, next_cross2(t))
+        if switches is not None:  # a driven rate also changes when a driver switches on an occupied branch
+            horizon = min(horizon, switches.next(pos))
 
         if rate_total > 0.0:
             t_ev = t + float(rng.exponential(1.0 / rate_total))
@@ -434,27 +508,32 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
                 t = t_ev
                 r = float(rng.random()) * rate_total
                 if r < r_dup:
-                    k, j = _pick_in(rng, gen, total, w_dup, r_dup)
+                    k, j = _pick_in(rng, gen, total, w_dup)
                     if not _at_cap(gen[k], gen[k][j].family, cap):
                         _duplicate(gen[k], j, tree.nodes[alive[k]], t, events, new_copy)
                         total += 1
+                        if by_lineage:
+                            stale.add(alive[k])
                 elif r < r_dup + r_los:
-                    k, j = _pick_in(rng, gen, total, w_los, r_los)
+                    k, j = _pick_in(rng, gen, total, w_los)
                     _lose_at(gen[k], j, tree.nodes[alive[k]], t, events)
                     total -= 1
                     if not gen[k]:                          # the family left this lineage
                         retire(alive, gen, pos, k)
+                        left(k)
+                    elif by_lineage:
+                        stale.add(alive[k])
                 else:
                     # the event fires at t_ev, which may be past a non-occupied lineage's birth/death
                     # (those are not in this family's horizon), so refresh the contemporaries to the
                     # event time before choosing a recipient — otherwise a dead or unborn lineage could
                     # be picked, and entering one with an end time behind t would rewind the clock.
                     advance_contemp(t)
-                    kd = None if w_tra is None else weighted_index(rng, w_tra, r_tra)
+                    kd = None if w_tra is None else w_tra.pick(rng)
                     total += _family_transfer(rng, tree, contemp, alive, gen, pos, heap, total, t,
                                               events, new_copy, transfer_to, replacement,
                                               self_transfer, depth, cap, to_traj, group_of, kd,
-                                              tally)
+                                              tally, joined, stale if by_lineage else None)
                 continue
 
         # advance to the horizon: a structural event (an occupied lineage ends) or a rate breakpoint
@@ -464,9 +543,11 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
                 _, i = heapq.heappop(heap)
                 if i not in pos:                            # stale duplicate
                     continue
-                g = gen[pos[i]]
+                k_out = pos[i]
+                g = gen[k_out]
                 node_genomes[i] = list(g)                   # finalise this family's copies at node i
-                retire(alive, gen, pos, pos[i])
+                retire(alive, gen, pos, k_out)
+                left(k_out)
                 node = tree.nodes[i]
                 if node.children and g:         # speciation: re-id each copy into daughters
                     total -= len(g)
@@ -476,6 +557,7 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
                         per_daughter.append([GeneEdge(t, "speciation", ch, old.family, nc.id,
                                                    parent=old.id) for old, nc in zip(g, child)])
                         enter(alive, gen, pos, ch, child)
+                        joined(ch)
                         heapq.heappush(heap, (tree.nodes[ch].end_time, ch))
                         total += len(child)
                     for rows in zip(*per_daughter):     # one gene, one event: its two edges together
@@ -503,7 +585,7 @@ def _evolve_family(task):
     return fid, events, node_genomes, multipliers, replaced
 
 
-def _pick_in(rng, gen, total, weights, weight_total):
+def _pick_in(rng, gen, total, weights):
     """``(lineage index, copy index)`` for the lineage an event lands on and the copy within it.
 
     ``weights is None`` — the undriven case — is the uniform pick over the family's whole copy pool,
@@ -513,15 +595,16 @@ def _pick_in(rng, gen, total, weights, weight_total):
 
     if weights is None:
         return _pick_copy(rng, gen, total)
-    k = weighted_index(rng, weights, weight_total)
-    if not gen[k]:                       # only via weighted_index's r == total float guard
+    k = weights.pick(rng)
+    if not gen[k]:                       # only via the pick's r == total float guard
         k = max(range(len(gen)), key=lambda i: weights[i])
     return k, int(rng.integers(len(gen[k])))
 
 
 def _family_transfer(rng, tree, contemp, alive, gen, pos, heap, total, t, events, new_copy,
                      transfer_to, replacement, self_transfer, depth, cap,
-                     to_traj=None, group_of=None, donor_k=None, tally=None) -> int:
+                     to_traj=None, group_of=None, donor_k=None, tally=None,
+                     joined=None, stale=None) -> int:
     """One transfer for the current family. Mirrors `_do_transfer()` exactly (donor
     continuation re-ids, optional homologous replacement, the cap thinning) but over this family's
     footprint: the recipient is a contemporaneous lineage picked by ``transfer_to``, and a recipient
@@ -561,8 +644,12 @@ def _family_transfer(rng, tree, contemp, alive, gen, pos, heap, total, t, events
     delta = 1
     if rg is None:                                         # the family reaches a new lineage
         enter(alive, gen, pos, recipient, [])
+        if joined is not None:
+            joined(recipient)
         heapq.heappush(heap, (tree.nodes[recipient].end_time, recipient))
         rg = gen[pos[recipient]]
+    if stale is not None:                                  # the recipient's copies are about to change
+        stale.add(recipient)
     replaced = None
     if replacement > 0.0:
         residents = [p for p, cpy in enumerate(rg) if cpy.family == fam and cpy.id != cont.id]

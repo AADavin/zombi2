@@ -40,7 +40,8 @@ from ..params.parameter import Rate, as_rate
 from ..params.retired import check_no_retired_keywords
 from ..params.scope import PerCopy, PerLineage
 from ..tree import Tree, as_tree, node_from_label
-from ._live import enter, retire, weighted_index, without_cyclic_gc
+from ._live import (DriverSwitches, SummedWeights, WeightedIndex, enter, retire, weighted_index,
+                    without_cyclic_gc)
 from ._transfer import (mean_root_to_tip, prepare_transfer_to, recipient_index,
                         resolve_transfer_to)
 
@@ -601,6 +602,24 @@ def _lineage_weights(rate, gen, k_alive: int, t: float, drivers, fam_sums, own=N
         return [read(k, len(gen[k])) if gen[k] else 0.0 for k in range(k_alive)]
     return [read(k, 1) * fam_sums[k] + (own[k] if own is not None else 0.0)
             if gen[k] else 0.0 for k in range(k_alive)]
+
+
+#: Tests only. When true, the serial loop compares every per-lineage value it kept between events
+#: with one built afresh, the way the loop built them all at every event before #487, and raises
+#: on the first that differs. It turns "a kept weight is the float a fresh one would be" from a
+#: claim into a check that any run can be put through.
+_CHECK_KEPT = False
+
+
+def _weights_total(w) -> float:
+    """What a rate's per-lineage weights add up to: a list rebuilt for this event is summed, and
+    weights kept between events (`WeightedIndex`, `SummedWeights`) already hold their total."""
+    return sum(w) if type(w) is list else w.total
+
+
+def _weighted_lineage(rng, w, total: float) -> int:
+    """The lineage an event lands on, drawn with the weights its rate was summed with."""
+    return weighted_index(rng, w, total) if type(w) is list else w.pick(rng)
 
 
 def _driven_mods(rate) -> list:
@@ -2017,6 +2036,108 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     dup_base, los_base = dup.base or 0.0, los.base or 0.0
     tra_base, org_base = tra.base or 0.0, org.base or 0.0
 
+    # --- per-lineage weights, kept between events (#487) ---------------------------------------
+    # A rate that differs between lineages (a driver, or a per-lineage draw) is summed over the
+    # living lineages and the affected one drawn with the same weights. Building those weights
+    # afresh at every event costs one rate evaluation per lineage per event, so a run slowed in
+    # proportion to its tree. But between two events almost nothing moves: an event changes the
+    # lineage it lands on, a driver switches on one branch, and only a schedule's breakpoint moves
+    # every lineage at once. So the weights are held here, in `alive` order, and a lineage's is
+    # rebuilt when its own genome or its own driver changed (`stale`), all of them at a breakpoint
+    # (`stale_all`). Each is the expression `_lineage_weights` wrote, over values that are constant
+    # between the loop's horizons, so a kept weight is the float a fresh one would be.
+    #
+    # What holds them decides whether the run's last digits move. A run that reads a driver takes
+    # `WeightedIndex`, whose total and draw do not walk the lineages: its cost per event stops
+    # growing with the tree, and its total is added in pairs rather than left to right, so such a
+    # run is the same process on other floats than before. A run with only per-lineage draws takes
+    # `SummedWeights`, which adds left to right as `sum()` did: unchanged to the last bit.
+    keep = {"duplication": bool(dup_mods or lin_by["duplication"]),
+            "loss": bool(los_mods or lin_by["loss"]),
+            "origination": bool(org_mods or lin_by["origination"]),
+            "transfer": bool(tra_mods or lin_by["transfer"])}
+    by_lineage = any_driven or any_lineage      # whether any per-lineage state is carried at all
+    kept: dict = {key: (WeightedIndex() if any_driven else SummedWeights())
+                  for key, on in keep.items() if on}
+    for held in kept.values():
+        held.append(0.0)                         # the root, weighed on the loop's first pass
+    drivers: list = [{}]                         # each living lineage's driver values, in `alive` order
+    switches = DriverSwitches(trajs) if trajs else None
+    if switches is not None:
+        switches.entered(root.id, t)
+    stale: set[int] = set()                      # node ids, so a swap-remove cannot misplace a mark
+    stale_all = True
+    skyline_next = -math.inf
+    fw: "dict[str, list[float]] | None" = None
+
+    def driver_values(k: int) -> dict:
+        """What every driver reads on lineage ``k`` right now: the finished ones from their
+        trajectories, the live ones from the genome the run is building."""
+        return {**{key: trajs[key].value(alive[k], t) for key in trajs},
+                **{src: live_value(fid, k) for src, fid in live_reads}}
+
+    def own_at(key: str, k: int):
+        """Lineage ``k``'s share of the families that wrote a rate of their own: what `own_sums`
+        holds at ``k``, or ``None`` when no family writes one."""
+        if fam_fixed is None or fw is None:
+            return None
+        total = fw[key + _FIXED][k]
+        if any_family_driven and key in fam_driven:
+            total = total + sum(counts.count(k, f) * family_rate_on(rate, k)
+                                for f, rate in fam_driven_ids[key].items() if counts.holds(k, f))
+        return total
+
+    def lineage_weight(key: str, rate, mods, k: int) -> float:
+        """One kept rate's weight on lineage ``k``: the element `_lineage_weights` builds for it."""
+        g = gen[k]
+        if not g:
+            return 0.0
+        copies = len(g) if fw is None else 1     # with per-family sums, the sums count the copies
+        if not mods:
+            value = rate.effective(copies=copies, lineages=1, time=t,
+                                   carried_factor=lin_mult[key][alive[k]])
+        elif not lin_by[key]:
+            value = rate.effective(copies=copies, lineages=1, time=t, drivers=drivers[k])
+        else:
+            value = rate.effective(copies=copies, lineages=1, time=t, drivers=drivers[k],
+                                   carried_factor=lin_mult[key][alive[k]])
+        if fw is None:
+            return value
+        own = own_at(key, k)
+        return value * fw[key][k] + (own if own is not None else 0.0)
+
+    def origination_weight(k: int) -> float:
+        """Origination's weight on lineage ``k``. Written apart from `lineage_weight`, which zeroes
+        an empty genome: right for an event that consumes a copy and wrong here, because a lineage
+        holding nothing can still gain a family. It needs no per-family term either: origination
+        can carry no per-family draw (refused above; when it is read there is no family yet)."""
+        if org_mods and lin_by["origination"]:
+            return org.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k],
+                                 carried_factor=lin_mult["origination"][alive[k]])
+        if org_mods:
+            return org.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
+        return org.effective(copies=len(gen[k]), lineages=1, time=t,
+                             carried_factor=lin_mult["origination"][alive[k]])
+
+    kept_rates = [(key, rate, mods) for key, rate, mods in (
+        ("duplication", dup, dup_mods), ("loss", los, los_mods), ("transfer", tra, tra_mods))
+        if keep[key]]
+
+    def check_kept() -> None:
+        """Tests only (`_CHECK_KEPT`): every kept value against one built afresh at this instant."""
+        k_alive = len(alive)
+        if any_driven:
+            fresh_drivers = [driver_values(k) for k in range(k_alive)]
+            assert drivers == fresh_drivers, f"kept driver values differ from fresh ones at t={t!r}"
+        for key, rate, mods in kept_rates:
+            fresh = _lineage_weights(
+                rate, gen, k_alive, t, drivers if mods else None,
+                fw[key] if fw is not None else None,
+                [own_at(key, k) for k in range(k_alive)]
+                if fw is not None and fam_fixed is not None else None,
+                [lin_mult[key][alive[k]] for k in range(k_alive)] if lin_by[key] else None)
+            assert list(kept[key]) == fresh, f"kept {key} weights differ from fresh ones at t={t!r}"
+
     # the species tree's schedule is the run's spine: one entry per speciation/extinction, so how
     # far through it we are is how far through the tree the genomes have got
     bar = progress_bar(len(schedule), "genomes", unit="branch", enabled=progress)
@@ -2068,13 +2189,21 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
             # lineage's, the multipliers are its contents' — which is what `_lineage_weights` does
             # with `fam_sums`.
             fw = None
-            if any_driven:  # each lineage's driver values, read before the weights that multiply them in
-                drivers = [{**{key: trajs[key].value(alive[k], t) for key in trajs},
-                            **{src: live_value(fid, k) for src, fid in live_reads}}
-                           for k in range(k_alive)]
-            if any_lineage:  # each lineage's drawn factor, in `alive` order, for the same weights
-                lin_at = {key: [lin_mult[key][alive[k]] for k in range(k_alive)]
-                          for key in lin_by if lin_by[key]}
+            todo: "range | list[int]" = []
+            if by_lineage:
+                # which lineages' kept values are out of date: the ones an event or an arrival
+                # marked, the ones a driver has just switched on, and all of them at a breakpoint
+                if switches is not None:
+                    stale.update(switches.due(t, pos))
+                if stale_all or t >= skyline_next:
+                    todo = range(k_alive)
+                else:
+                    todo = [pos[i] for i in stale if i in pos]
+                stale.clear()
+                stale_all = False
+                if any_driven:  # the driver values first: the weights below multiply them in
+                    for k in todo:
+                        drivers[k] = driver_values(k)
             if any_family:
                 # A per-copy rate pools over copies, so with per-family multipliers the total is the
                 # unit rate times the sum of those multipliers over the live copies — and the copy has
@@ -2096,7 +2225,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                                           for f, rate in fam_driven_ids[key].items()
                                           if counts.holds(k, f))
                               for k, total in enumerate(fw[key + _FIXED])]
-                        for key in fam_driven}
+                        for key in fam_driven if not keep[key]}   # a kept rate reads `own_at`
 
                     def own_sums(key, _fixed=fixed_sums, _driven=with_driven):
                         return _driven[key] if key in _driven else _fixed(key)
@@ -2107,67 +2236,54 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                     `_lineage_weights` used for that lineage — which the copy pick has to use too, or
                     the totals and the pick disagree about how a written family rate compares with
                     the run's."""
-                    factor = lin_at[key][k] if lin_by[key] else 1.0
+                    factor = lin_mult[key][alive[k]] if lin_by[key] else 1.0
                     if not any_driven:
                         return unit[key] * factor
                     return _rates[key].effective(copies=1, lineages=1, time=t, drivers=drivers[k],
                                                  carried_factor=factor)
-                w_dup = _family_weights(unit["duplication"], fw["duplication"],
-                                        own_sums("duplication"),
-                                        lin_at["duplication"] if lin_by["duplication"] else None)
-                w_los = _family_weights(unit["loss"], fw["loss"], own_sums("loss"),
-                                        lin_at["loss"] if lin_by["loss"] else None)
-                if can_xfer:
-                    w_tra = _family_weights(unit["transfer"], fw["transfer"], own_sums("transfer"),
-                                            lin_at["transfer"] if lin_by["transfer"] else None)
-            if any_driven or any_lineage:
+                # a rate kept per lineage reads these sums where it is rebuilt (`lineage_weight`)
+                if not keep["duplication"]:
+                    w_dup = _family_weights(unit["duplication"], fw["duplication"],
+                                            own_sums("duplication"))
+                if not keep["loss"]:
+                    w_los = _family_weights(unit["loss"], fw["loss"], own_sums("loss"))
+                if can_xfer and not keep["transfer"]:
+                    w_tra = _family_weights(unit["transfer"], fw["transfer"], own_sums("transfer"))
+            if by_lineage:
                 # each rate reads the driver values only if it is driven and the drawn factors only
                 # if it carries a draw, so a rate with one of the two is unchanged by the other
-                def weigh(key, rate, mods):
-                    return _lineage_weights(
-                        rate, gen, k_alive, t, drivers if mods else None,
-                        fw[key] if fw is not None else None,
-                        own_sums(key) if fw is not None else None,
-                        lin_at[key] if lin_by[key] else None)
-                if dup_mods or lin_by["duplication"]:
-                    w_dup = weigh("duplication", dup, dup_mods)
-                if los_mods or lin_by["loss"]:
-                    w_los = weigh("loss", los, los_mods)
-                # Origination is written out rather than taken through `_lineage_weights`, which
-                # zeroes an empty genome: that is right for an event that consumes a copy and wrong
-                # here, because a lineage holding nothing can still gain a family. It needs no
-                # fam_sums branch either — origination can carry no per-family draw (refused above:
-                # when it is read there is no family yet to have drawn one).
-                if org_mods and lin_by["origination"]:
-                    w_org = [org.effective(copies=len(gen[k]), lineages=1, time=t,
-                                           drivers=drivers[k],
-                                           carried_factor=lin_at["origination"][k])
-                             for k in range(k_alive)]
-                elif org_mods:
-                    w_org = [org.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
-                             for k in range(k_alive)]
-                elif lin_by["origination"]:
-                    w_org = [org.effective(copies=len(gen[k]), lineages=1, time=t,
-                                           carried_factor=lin_at["origination"][k])
-                             for k in range(k_alive)]
-                if (tra_mods or lin_by["transfer"]) and can_xfer:
-                    w_tra = weigh("transfer", tra, tra_mods)
-            r_dup = sum(w_dup) if w_dup is not None else (
+                for k in todo:
+                    for key, rate, mods in kept_rates:
+                        kept[key].set(k, lineage_weight(key, rate, mods, k))
+                    if keep["origination"]:
+                        kept["origination"].set(k, origination_weight(k))
+                if _CHECK_KEPT:
+                    check_kept()
+                if keep["duplication"]:
+                    w_dup = kept["duplication"]
+                if keep["loss"]:
+                    w_los = kept["loss"]
+                if keep["origination"]:
+                    w_org = kept["origination"]
+                if keep["transfer"] and can_xfer:
+                    w_tra = kept["transfer"]
+            r_dup = _weights_total(w_dup) if w_dup is not None else (
                 dup.effective(**(host_ctx if dup_per_lineage else ctx)) if n else 0.0)
-            r_los = sum(w_los) if w_los is not None else (
+            r_los = _weights_total(w_los) if w_los is not None else (
                 los.effective(**(host_ctx if los_per_lineage else ctx)) if n else 0.0)
-            r_org = sum(w_org) if w_org is not None else org.effective(**ctx)
-            r_tra = sum(w_tra) if w_tra is not None else (
+            r_org = _weights_total(w_org) if w_org is not None else org.effective(**ctx)
+            r_tra = _weights_total(w_tra) if w_tra is not None else (
                 tra.effective(**(host_ctx if tra_per_lineage else ctx)) if can_xfer else 0.0)
-            horizon = min(next_species, next_start, dup.next_change(t), los.next_change(t),
-                          org.next_change(t), tra.next_change(t))
+            # a schedule's next breakpoint moves every lineage's rate at once, so it is kept apart:
+            # arriving at it is what marks every kept weight out of date
+            skyline_next = min(dup.next_change(t), los.next_change(t),
+                               org.next_change(t), tra.next_change(t))
             if any_family_driven:  # a family's own changing_at moves its rate too, so step there
-                horizon = min(horizon, min(rate.next_change(t) for table in fam_driven.values()
-                                           for rate in table.values()))
-            if any_driven:  # a driven rate also changes when the driver switches mid-branch — step there
-                driver_next = min((trajs[key].next_change(alive[k], t) for key in trajs
-                                   for k in range(k_alive)), default=math.inf)
-                horizon = min(horizon, driver_next)
+                skyline_next = min(skyline_next, min(rate.next_change(t) for table in fam_driven.values()
+                                                     for rate in table.values()))
+            horizon = min(next_species, next_start, skyline_next)
+            if switches is not None:  # a driven rate also changes when a driver switches mid-branch
+                horizon = min(horizon, switches.next(pos))
         total = r_dup + r_los + r_org + r_tra
 
         if total > 0.0:
@@ -2177,7 +2293,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                 r = float(rng.random()) * total
                 if r < r_dup:
                     if w_dup is not None:  # weighted lineage, then a copy within it
-                        k = weighted_index(rng, w_dup, r_dup)
+                        k = _weighted_lineage(rng, w_dup, r_dup)
                         j = (_pick_copy_by_family(rng, gen[k], fam_mult["duplication"],
                                                   own_rates("duplication", k),
                                                   unit_at("duplication", k))
@@ -2194,9 +2310,11 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                         total_copies += 1
                         if weights is not None:
                             weights.touched(k)
+                        if by_lineage:
+                            stale.add(alive[k])
                 elif r < r_dup + r_los:
                     if w_los is not None:
-                        k = weighted_index(rng, w_los, r_los)
+                        k = _weighted_lineage(rng, w_los, r_los)
                         j = (_pick_copy_by_family(rng, gen[k], fam_mult["loss"],
                                                   own_rates("loss", k), unit_at("loss", k))
                              if any_family else int(rng.integers(len(gen[k]))))
@@ -2210,17 +2328,21 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                     total_copies -= 1
                     if weights is not None:
                         weights.touched(k)
+                    if by_lineage:
+                        stale.add(alive[k])
                 elif r < r_dup + r_los + r_org:
-                    k = (weighted_index(rng, w_org, r_org) if w_org is not None
+                    k = (_weighted_lineage(rng, w_org, r_org) if w_org is not None
                          else int(rng.integers(k_alive)))  # origination is per lineage
                     _originate(gen[k], tree.nodes[alive[k]], t, events, new_copy, new_family)
                     counts.added(k, gen[k][-1].family)       # the copy _originate just appended
                     total_copies += 1
                     if weights is not None:
                         weights.touched(k)
+                    if by_lineage:
+                        stale.add(alive[k])
                 else:
                     if w_tra is not None:  # driven: weighted DONOR lineage, then a uniform copy in it
-                        kd = weighted_index(rng, w_tra, r_tra)
+                        kd = _weighted_lineage(rng, w_tra, r_tra)
                         if not gen[kd]:    # only via weighted_index's r == total float guard: a
                             # zero-weight lineage has no copies to donate, so take the heaviest instead
                             kd = max(range(k_alive), key=lambda k: w_tra[k])
@@ -2244,6 +2366,8 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                     total_copies += delta
                     if weights is not None and kr is not None:
                         weights.touched(kr)   # only the recipient's composition changed (see there)
+                    if by_lineage and kr is not None:
+                        stale.add(alive[kr])
                 continue
 
         if horizon == next_species:  # advance to the tree's next event(s); process the whole tie-batch
@@ -2258,6 +2382,11 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                 inherited = counts.retired(k_out)   # what the daughters below inherit, if any
                 if weights is not None:
                     weights.retired(k_out)
+                if by_lineage:                      # the kept arrays follow the same swap-remove
+                    for held in kept.values():
+                        held.remove(k_out)
+                    drivers[k_out] = drivers[-1]
+                    drivers.pop()
                 node = tree.nodes[i]
                 if node.children:  # a speciation: each gene re-ids into each daughter
                     per_daughter = []
@@ -2272,6 +2401,13 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                         counts.entered_like(inherited)   # a re-id of the parent: same families
                         if weights is not None:
                             weights.entered(child_genome)
+                        if by_lineage:                   # a daughter enters unweighed, and marked
+                            for held in kept.values():
+                                held.append(0.0)
+                            drivers.append({})
+                            stale.add(c)
+                            if switches is not None:
+                                switches.entered(c, t)
                         total_copies += len(child_genome)
                     # the ids are minted daughter by daughter (which is what fixes them), but a gene's
                     # two rows are recorded together: one gene ending is one event, and the log writes
@@ -2294,6 +2430,8 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                 total_copies += 1
                 if weights is not None:
                     weights.touched(k)
+                if by_lineage:
+                    stale.add(lineage)
                 start_i += 1
         else:
             t = horizon  # a skyline breakpoint: advance and re-evaluate the (now changed) rate
