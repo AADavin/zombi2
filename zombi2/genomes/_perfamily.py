@@ -76,6 +76,12 @@ def _unsupported_reason(dup, tra, los, org, transfer_to) -> str | None:
     return None
 
 
+#: Tests only: the per-family twin of `zombi2.genomes.family._CHECK_KEPT`. When true, both passes
+#: compare each kept driver value, each kept weight and the next driver switch with one built
+#: afresh, as the loops built them at every event before #487, and raise on the first that differs.
+_CHECK_KEPT = False
+
+
 # --- Pass 1: enumerate every family and where it originates (serial, cheap) ------------------------
 
 def _enumerate_families(tree, org, initial_families, families_named, placed, rng, trajs=None,
@@ -155,6 +161,9 @@ def _enumerate_families(tree, org, initial_families, families_named, placed, rng
                 weights.set(k, weight(k))
             stale.clear()
             stale_all = False
+            if _CHECK_KEPT:
+                assert list(weights) == [weight(k) for k in range(k_alive)], \
+                    f"kept origination weights differ from fresh ones at t={t!r}"
             rate = weights.total
         else:
             rate = org.effective(copies=0, lineages=k_alive, time=t)
@@ -162,7 +171,12 @@ def _enumerate_families(tree, org, initial_families, families_named, placed, rng
         skyline_next = org.next_change(t)
         horizon = min(next_species, skyline_next)
         if switches is not None:  # the driver switching on a branch changes the rate: stop there
-            horizon = min(horizon, switches.next(pos))
+            driver_next = switches.next(pos)
+            if _CHECK_KEPT:
+                assert driver_next == min((trajs[key].next_change(alive[k], t) for key in trajs
+                                           for k in range(k_alive)), default=math.inf), \
+                    f"the kept next driver switch differs from a fresh one at t={t!r}"
+            horizon = min(horizon, driver_next)
         if rate > 0.0:
             t_ev = t + float(rng.exponential(1.0 / rate))
             if t_ev < horizon:
@@ -483,6 +497,15 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
                     kept[key].set(k, weight(key, rate, family_mult, k))
             stale.clear()
             stale_all = False
+            if _CHECK_KEPT:
+                if any_driven:
+                    assert values == [{key: trajs[key].value(alive[k], t) for key in trajs}
+                                      for k in range(len(alive))], \
+                        f"kept driver values differ from fresh ones at t={t!r}"
+                for key, rate, family_mult in kept_rates:
+                    assert list(kept[key]) == [weight(key, rate, family_mult, k)
+                                               for k in range(len(alive))], \
+                        f"kept {key} weights differ from fresh ones at t={t!r}"
             w_dup, w_los = kept.get("duplication"), kept.get("loss")
             if can_xfer:
                 w_tra = kept.get("transfer")
@@ -500,7 +523,12 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
         skyline_next = min(dup.next_change(t), los.next_change(t), tra.next_change(t))
         horizon = min(next_struct, skyline_next, next_cross2(t))
         if switches is not None:  # a driven rate also changes when a driver switches on an occupied branch
-            horizon = min(horizon, switches.next(pos))
+            driver_next = switches.next(pos)
+            if _CHECK_KEPT:
+                assert driver_next == min((trajs[key].next_change(alive[k], t) for key in trajs
+                                           for k in range(len(alive))), default=math.inf), \
+                    f"the kept next driver switch differs from a fresh one at t={t!r}"
+            horizon = min(horizon, driver_next)
 
         if rate_total > 0.0:
             t_ev = t + float(rng.exponential(1.0 / rate_total))

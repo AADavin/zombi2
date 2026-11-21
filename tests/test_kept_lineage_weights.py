@@ -5,15 +5,17 @@ lineages, and the affected one is drawn with the same weights. The family engine
 every lineage's weight at every event, so a driven run slowed in proportion to its tree. They keep
 the weights now and rebuild one lineage when its genome or its driver changes. What has to hold:
 
-- a kept weight is the float a fresh one would be, at every event (`_CHECK_KEPT`);
-- with the weights added left to right, a driven run is byte for byte the run 0.57.1 made, on both
-  engines, so keeping them changed nothing but the cost;
-- a run that reads no driver is unchanged as shipped, because it adds left to right (`SummedWeights`);
+- everything kept is what a fresh build would give, at every pass of both engines: the driver
+  values, the weights, the next driver switch (`_CHECK_KEPT`). Compared in the running process
+  against the old expressions, so it holds on any platform — a digest of a 0.57.1 run would not,
+  since the old loop's ``sum()`` adds differently before Python 3.12 and the draws lean on the
+  platform's ``exp`` and ``log``;
+- kept weights added left to right (`SummedWeights`) give the total and the draw a fresh list gave,
+  so a run that reads no driver is the run it was;
 - a run that reads a driver adds in pairs (`WeightedIndex`): the same process, and an event that
   costs no more on a larger tree.
 """
 
-import hashlib
 import math
 import sys
 
@@ -113,10 +115,6 @@ def _undriven():
     }
 
 
-def _digest(run) -> str:
-    return hashlib.sha256("\n".join(repr(e) for e in run.events).encode()).hexdigest()[:12]
-
-
 def _run(tree, kw, **engine):
     return simulate_genomes_family(tree, initial_families=15, seed=7, **kw, **engine)
 
@@ -179,81 +177,37 @@ def test_driver_switches_names_the_next_switch_and_who_switched(world):
     assert seen >= 10                             # the walk did cross switches, not only churn
 
 
-# --- a kept weight is the float a fresh one would be ----------------------------------------------
+# --- everything kept is what a fresh build would give ---------------------------------------------
 
-def test_every_kept_weight_matches_one_built_afresh(world, monkeypatch):
+def test_the_serial_loop_keeps_what_a_fresh_build_would_give(world, monkeypatch):
     tree, hab, bm = world
     serial, _ = _modules()
     monkeypatch.setattr(serial, "_CHECK_KEPT", True)
     for kw in ({**_driven(hab, bm), **_driven_serial_only(hab), **_undriven()}).values():
-        _run(tree, kw)                            # raises on the first kept value that differs
+        assert _run(tree, kw).events              # raises on the first kept value that differs
 
 
-# --- and so the run is the run it was -------------------------------------------------------------
-
-#: Taken on an export of main at 0.57.1 (a66b2dff): the serial engine, then the per-family one.
-#: Twice, because the old loop added its weights with ``sum()``, and Python 3.12 made ``sum()`` of
-#: floats a compensated one: the same list can add up to a float one digit away on 3.11. So 0.57.1
-#: itself made two runs, by Python version, and each is the one to compare with.
-_BEFORE_312 = {
-    "a trait on duplication and loss": ("e2517460a321", "b5d56ffce2ee"),
-    "a continuous trait, stepped": ("d8bf0831620d", "2e302820edd2"),
-    "transfer and origination": ("f0be955f1627", "b2595fc91b67"),
-    "a family draw beside it": ("2fa196e14efa", "07a7d069dc9b"),
-    "a family draw on it": ("3f8d9db9382e", "4e79c6cc6538"),
-    "a schedule on it": ("00feabcd3f9e", "93821f415508"),
-    "a per-lineage scope": ("6ad4c4b2dd9c", "96d727220cbd"),
-    "replacing transfers to oneself": ("4d3e6c7ab8b9", "c14da29d0645"),
-    "a per-lineage draw on it": ("c8203c50d32d", "85547f40a927"),
-    "per-lineage draws": ("676f26ab97bf", "a4b69b8a6610"),
-    "a per-lineage and a per-family draw": ("b5cb06d8af3b", "3b218906e3e1"),
-    "plain numbers": ("153ae959d10d", "ffa8d8dd72aa"),
-    "a per-family draw": ("930fb71bee3e", "315c4c508cca"),
-    "a schedule": ("12d6ded0bea5", "f8f202276e58"),
-    "a family's own number": ("c49e5db9e468", None),
-    "a family's own driven rate": ("f4f0483a13ee", None),
-    "both driven": ("d15df3f3172e", None),
-}
-_BEFORE_311 = {
-    "a trait on duplication and loss": ("e2517460a321", "0bc6535ce564"),
-    "a continuous trait, stepped": ("e2132bcb4ca7", "e7434f1fcca3"),
-    "transfer and origination": ("f0be955f1627", "bdda3a02154a"),
-    "a family draw beside it": ("7b42d554781a", "07a7d069dc9b"),
-    "a family draw on it": ("7a248543bcbf", "71f8a5525b6e"),
-    "a schedule on it": ("00feabcd3f9e", "93821f415508"),
-    "a per-lineage scope": ("6ad4c4b2dd9c", "96d727220cbd"),
-    "replacing transfers to oneself": ("4d3e6c7ab8b9", "fd1637cb9edd"),
-    "a per-lineage draw on it": ("b7afa5485b63", "8f731e2adf93"),
-    "per-lineage draws": ("676f26ab97bf", "83618d2f7381"),
-    "a per-lineage and a per-family draw": ("8cca57f4c274", "3b218906e3e1"),
-    "plain numbers": ("153ae959d10d", "ffa8d8dd72aa"),
-    "a per-family draw": ("930fb71bee3e", "315c4c508cca"),
-    "a schedule": ("12d6ded0bea5", "f8f202276e58"),
-    "a family's own number": ("c49e5db9e468", None),
-    "a family's own driven rate": ("f4f0483a13ee", None),
-    "both driven": ("d15df3f3172e", None),
-}
-_BEFORE = _BEFORE_312 if sys.version_info >= (3, 12) else _BEFORE_311
+def test_the_per_family_engine_keeps_what_a_fresh_build_would_give(world, monkeypatch):
+    """Both of its passes: where the families originate, then each family down the tree. One worker
+    runs the engine in this process, which is where the flag is set."""
+    tree, hab, bm = world
+    _, per_family = _modules()
+    monkeypatch.setattr(per_family, "_CHECK_KEPT", True)
+    for kw in ({**_driven(hab, bm), **_undriven()}).values():
+        assert _run(tree, kw, parallel=1).events
 
 
-def test_with_sums_left_to_right_a_driven_run_is_the_run_it_was(world, monkeypatch):
-    """Keeping the weights changes the cost and nothing else. Shown by taking the one other change
-    away: hold the kept weights in `SummedWeights`, which adds as the old loop did, and every driven
-    run is the 0.57.1 run to the last digit, on both engines."""
-    from zombi2._runtime.draw import SummedWeights
+@pytest.mark.parametrize("engine", [{}, {"parallel": 1}], ids=["serial", "per-family"])
+def test_the_check_catches_a_switch_that_went_unnoticed(world, monkeypatch, engine):
+    """The check is only worth its name if it fails when the keeping is wrong. Here no driver
+    switch is ever reported, so a lineage keeps the weight of the state it has left."""
+    from zombi2.genomes._live import DriverSwitches
     tree, hab, bm = world
     for module in _modules():
-        monkeypatch.setattr(module, "WeightedIndex", SummedWeights)
-    for label, kw in _driven(hab, bm).items():
-        assert (_digest(_run(tree, kw)), _digest(_run(tree, kw, parallel=1))) == _BEFORE[label], label
-    for label, kw in _driven_serial_only(hab).items():
-        assert _digest(_run(tree, kw)) == _BEFORE[label][0], label
-
-
-def test_a_run_reading_no_driver_is_unchanged(world):
-    tree, _hab, _bm = world
-    for label, kw in _undriven().items():
-        assert (_digest(_run(tree, kw)), _digest(_run(tree, kw, parallel=1))) == _BEFORE[label], label
+        monkeypatch.setattr(module, "_CHECK_KEPT", True)
+    monkeypatch.setattr(DriverSwitches, "due", lambda self, time, pos: [])
+    with pytest.raises(AssertionError, match="differ"):
+        _run(tree, _driven(hab, bm)["a trait on duplication and loss"], **engine)
 
 
 def test_a_driven_run_on_the_tree_is_the_same_process(world):

@@ -604,10 +604,11 @@ def _lineage_weights(rate, gen, k_alive: int, t: float, drivers, fam_sums, own=N
             if gen[k] else 0.0 for k in range(k_alive)]
 
 
-#: Tests only. When true, the serial loop compares every per-lineage value it kept between events
-#: with one built afresh, the way the loop built them all at every event before #487, and raises
-#: on the first that differs. It turns "a kept weight is the float a fresh one would be" from a
-#: claim into a check that any run can be put through.
+#: Tests only. When true, the serial loop compares everything it kept between events with the same
+#: thing built afresh, the way the loop built it at every event before #487: each lineage's driver
+#: values, each kept weight, and the next driver switch. It raises on the first that differs. With
+#: the weights added left to right (`SummedWeights`) those are all the run is made of, so a run
+#: that passes is, float for float, the run the old loop made — on whatever platform it is run.
 _CHECK_KEPT = False
 
 
@@ -2283,7 +2284,12 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                                                      for rate in table.values()))
             horizon = min(next_species, next_start, skyline_next)
             if switches is not None:  # a driven rate also changes when a driver switches mid-branch
-                horizon = min(horizon, switches.next(pos))
+                driver_next = switches.next(pos)
+                if _CHECK_KEPT:
+                    assert driver_next == min((trajs[key].next_change(alive[k], t) for key in trajs
+                                               for k in range(k_alive)), default=math.inf), \
+                        f"the kept next driver switch differs from a fresh one at t={t!r}"
+                horizon = min(horizon, driver_next)
         total = r_dup + r_los + r_org + r_tra
 
         if total > 0.0:
