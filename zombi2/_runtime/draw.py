@@ -13,7 +13,7 @@ anywhere without a cycle: `zombi2.genomes` imports `zombi2.species`, so the reve
 
 from __future__ import annotations
 
-__all__ = ["WeightedIndex", "weighted_index"]
+__all__ = ["SummedWeights", "WeightedIndex", "weighted_index"]
 
 
 def weighted_index(rng, weights, total: float) -> int:
@@ -139,3 +139,55 @@ class WeightedIndex:
         for i in range(cap - 1, 0, -1):
             tree[i] = tree[2 * i] + tree[2 * i + 1]
         self._cap, self._tree = cap, tree
+
+
+class SummedWeights:
+    """`WeightedIndex`'s interface over a plain list: the weights are kept between events, and the
+    total and the draw are the ones ``sum()`` and `weighted_index` give, to the last bit.
+
+    It is for a run that must stay the run it was. Keeping a lineage's weight until something changes
+    it saves evaluating a rate on every lineage at every event, and that is most of the cost; adding
+    the kept weights left to right, in the live set's order, gives the float a fresh list would. What
+    it does not save is the walk: the total and the draw still read every weight, so a run that can
+    afford its last digits moving takes `WeightedIndex` instead.
+    """
+
+    __slots__ = ("_w", "_total")
+
+    def __init__(self) -> None:
+        self._w: list[float] = []
+        self._total: float | None = 0.0
+
+    def __len__(self) -> int:
+        return len(self._w)
+
+    def __getitem__(self, k: int) -> float:
+        return self._w[k]
+
+    def __iter__(self):
+        return iter(self._w)
+
+    @property
+    def total(self) -> float:
+        """The weights summed left to right, as ``sum()`` over a fresh list would."""
+        if self._total is None:
+            self._total = sum(self._w)
+        return self._total
+
+    def set(self, k: int, value: float) -> None:
+        self._w[k] = value
+        self._total = None
+
+    def append(self, value: float = 0.0) -> None:
+        self._w.append(value)
+        self._total = None
+
+    def remove(self, k: int) -> None:
+        """Swap-remove, the move `zombi2.genomes._live.retire` makes."""
+        self._w[k] = self._w[-1]
+        self._w.pop()
+        self._total = None
+
+    def pick(self, rng) -> int:
+        return weighted_index(rng, self._w, self.total)
+
