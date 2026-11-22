@@ -113,9 +113,8 @@ _SEGMENT_EXTENTS = ("inversion", "transposition", "translocation", "loss", "dupl
 # for. The run log records the resolved value, so a run is never ambiguous about which it used.
 _DEFAULT_INITIAL_FAMILIES = 100
 
-# knobs the nucleotide engine does not have — it starts from a sequence, not from a family count,
-# and its transfers are always additive. Paired with the default, so leaving the flag alone is not
-# mistaken for setting it.
+# knobs the nucleotide engine does not have — it starts from a sequence, not from a family count.
+# Paired with the default, so leaving the flag alone is not mistaken for setting it.
 #: The per-genome family cap, the same default the two engines carry: how many copies of ONE family
 #: one genome may hold. Duplication compounds, so a run is bounded unless you ask otherwise;
 #: `--max-family-size none` is that ask. Ten is a genome-shaped number — most families in a real
@@ -126,7 +125,7 @@ _DEFAULT_INITIAL_FAMILIES = 100
 #: number here was never the number that applied.)
 _DEFAULT_MAX_FAMILY_SIZE = 10
 
-_NOT_IN_NUCLEOTIDE = (("initial_families", None), ("replacement", 0.0),
+_NOT_IN_NUCLEOTIDE = (("initial_families", None),
                       ("max_family_size", _DEFAULT_MAX_FAMILY_SIZE), ("burn_in", None))
 
 
@@ -185,9 +184,9 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                         "clades, or a Recipients().weighted_by(driver, {...}) rule")
     g.add_argument("--replacement", type=_probability, nargs="?", const=1.0, default=0.0,
                    metavar="P",
-                   help="the probability that a transfer arriving where its family already has a "
-                        "copy overwrites one resident copy instead of being added beside it; "
-                        "--replacement alone is 1 (replacing HGT), no flag is 0 (additive)")
+                   help="the probability that a transfer overwrites a recipient gene from the same "
+                        "family, or a homologue at nucleotide resolution. Otherwise, the transfer "
+                        "is additive. `--replacement` alone means 1, and no flag means 0")
     g.add_argument("--self-transfer", action="store_true", dest="self_transfer",
                    help="allow a lineage to transfer to itself")
     g.add_argument("--initial-families", type=int, default=None, metavar="N",
@@ -550,7 +549,6 @@ def run(args, parser):
             # explanation that fits some of them and not the rest
             why = {"--initial-families": "the genome is founded from a sequence, not from a family "
                                          "count — see --root-length / --genes / --gff",
-                   "--replacement": "a nucleotide transfer is always additive",
                    "--max-family-size": "a quota counts copies of a family, and here an event takes "
                                         "an arc of DNA that may cover several families or none"}
             parser.error("; ".join(f"the nucleotide resolution has no {f} ({why[f]})"
@@ -642,6 +640,7 @@ def run(args, parser):
         result = simulate_genomes_nucleotide(
             tree, root_length=args.root_length, genes=args.genes, gene_length=args.gene_length,
             gff=args.gff, fasta=args.fasta, trim_overlaps=args.trim_overlaps,
+            replacement=args.replacement,
             progress=not args.quiet, **extents, **indels, **structured, **common)
     elif streaming:
         # each family written straight to disk (no whole run in memory) — the engine writes `out`
