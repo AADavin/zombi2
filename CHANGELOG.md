@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.59.1] - 2026-11-22
+
 ### Fixed
 
 - Fix gene tree counting in `--resolution nucleotide` runs after a duplication or transfer of a block that a deletion or an insertion had already cut into pieces. The gene tree now has one leaf for each copy a genome holds. This also corrects block tree outputs, phylograms, and duplication and transfer counts in `genome_events.tsv` and `genome_summary.json`. The fix leaves genomes, alignments, and runs without indels unchanged. (#496)
