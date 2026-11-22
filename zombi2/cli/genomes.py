@@ -245,7 +245,7 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                    help="a GFF3 declaring the initial genome's replicons and genes at exact "
                         "coordinates (excludes --genes)")
     g.add_argument("--trim-overlaps", action="store_true", dest="trim_overlaps",
-                   help="[--gff] shorten overlapping genes, not refuse")
+                   help="[--gff] shorten overlapping genes and drop contained genes")
     g.add_argument("--fasta", metavar="FILE",
                    help="[--gff] the initial genome's DNA — one >seqid record per GFF "
                         "##sequence-region, each exactly its declared length")

@@ -2047,7 +2047,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
             raise ValueError(f"intergene_speed must be a positive number, got {intergene_speed!r}")
         gene_trees = genomes.block_trees
         blocks = genomes.root_blocks
-        genic = {span: fam for fam, span in genomes.gene_spans.items()}
+        # the root blocks that hold genes: one per gene, or one per group of overlapping genes
+        genic = set(genomes._blocks_of_genes()[1].values())
         # per block: its length, whether it is genic, the model it evolves under and its speed
         per_block = {}
         for i, (src, a, b) in enumerate(blocks):

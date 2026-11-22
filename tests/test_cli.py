@@ -196,18 +196,14 @@ def test_species_engine_error_is_reported_cleanly(tmp_path, capsys):
     assert "zombi2: error:" in capsys.readouterr().err
 
 
-def test_engine_error_is_respelt_in_flags(tmp_path, capsys, tree_file):
-    # the engines raise for a Python caller ("pass trim_overlaps=True"), which is a dead end at a
-    # shell prompt. The CLI must hand back the flag that reaches the same keyword.
-    gff = tmp_path / "overlapping.gff"
-    gff.write_text("##sequence-region c1 1 900\n"
-                   "c1\t.\tgene\t100\t400\t.\t+\t.\tID=a\n"
-                   "c1\t.\tgene\t300\t600\t.\t+\t.\tID=b\n", encoding="utf-8")
-    rc = main(["genomes", str(tmp_path / "g"), "--from", str(tree_file),
-               "--resolution", "nucleotide", "--gff", str(gff), "--flat"])
+def test_engine_error_is_respelt_in_flags(tmp_path, capsys):
+    # the engines raise for a Python caller ("give total_time=..., not n_extant="), which is a dead
+    # end at a shell prompt. The CLI must hand back the flags that reach the same keywords.
+    rc = main(["species", str(tmp_path / "s"), "--birth", "1", "--death", "0.2", "--n-extant", "5",
+               "--mass-extinction", "0.5", "0.5", "--seed", "1"])
     assert rc == 1
     err = capsys.readouterr().err
-    assert "--trim-overlaps" in err and "trim_overlaps=True" not in err
+    assert "give --total-time, not --n-extant" in err and "total_time=" not in err
 
 
 @pytest.mark.parametrize("death", ["-0.3", "Global(-0.3)"])

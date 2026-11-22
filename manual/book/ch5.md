@@ -6,7 +6,8 @@ At the **nucleotide** resolution a chromosome is a **coordinate axis of DNA** ra
 
 A genome here is DNA, and its DNA is of two kinds:
 
-- a **gene** is *declared* and *indivisible*: one family, one id, never cut in two. It carries a gene tree.
+- a **gene** is *declared* and *indivisible*: it keeps its own family id and gene tree. A breakpoint never falls strictly inside a gene.
+- genes that overlap share one block, which spans all of them. No breakpoint falls inside that block, so its genes are never separated. Genes that only touch do not share a block.
 - an **intergene** is the spacer between genes. Nothing protects it, so events cut it wherever they land.
 
 ![Why a gene is never split. The strip beneath the replicon is the set of positions a breakpoint may take: every stretch of spacer, and no part of a gene. An event's two ends are drawn from that strip in the first place, rather than drawn anywhere and repaired afterwards, so the deletion above either takes gene 2 whole or does not touch it. A genome with no spacer at all is still legal: the strip is then just the joins between genes, and events move genes around whole.](figures/legal_breakpoints_print.png){width=100%}
@@ -49,7 +50,7 @@ In practice the difference is one of scale, and the extent defaults say so: 50 b
 
 ## Reading a genome, block by block
 
-Two leaves of an inversion run show what its events did. `describe` writes one out: each line is a **block**, a stretch of DNA with one unbroken ancestry, written as the interval it came from on the initial sequence, read forward (`+`) or reverse-complemented (`−`). A gene is always one block, because nothing may cut it. Spacer is not, so several intergene lines in a row are simply spacer that has been cut apart and rearranged: the accumulated breakpoints of everything that happened to that lineage.
+Two leaves of an inversion run show what its events did. `describe` writes one out: each line is a **block**, a stretch of DNA with one unbroken ancestry, written as the interval it came from on the initial sequence, read forward (`+`) or reverse-complemented (`−`). A gene occupies its own block unless it overlaps another gene, in which case the genes share one block. Spacer is not, so several intergene lines in a row are simply spacer that has been cut apart and rearranged: the accumulated breakpoints of everything that happened to that lineage.
 
 ```python
 from zombi2 import species, genomes
@@ -96,7 +97,7 @@ The **initial genome**, the genome the run starts from at time 0 before any even
 
 **Evenly spaced genes.** `root_length=L` sets each replicon's length in base pairs, and `genes=N, gene_length=l` lays down `N` genes of `l` bp on each replicon, spreading the leftover DNA evenly between them. The karyotype is `chromosomes=`: an integer makes that many equal replicons of `root_length` each, `"circular"` by default or `topology="linear"`; a list of `(length, topology)` pairs makes them unequal. Good for controlled experiments, since gene density is then a number you set.
 
-**A GFF file.** `gff="genome.gff"` takes exact coordinates from a real annotation. `##sequence-region` gives each replicon's length, `gene` features give coordinates, strand and name, and other feature types are ignored. Names land in `result.gene_names`, so you can follow a named gene through the run. `gff=` and `genes=` are mutually exclusive; a GFF already declares the genes ([Ge11](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_circular_nucleotide-->). Genes may touch but never overlap, since a gene is one indivisible block. Real annotations do overlap, usually by a base or two where genes abut in an operon, so an overlap is refused rather than guessed at: `trim_overlaps=True` (`--trim-overlaps`) pushes each overlapping gene's start to its neighbour's end instead, and drops any gene swallowed whole.
+**A GFF file.** `gff="genome.gff"` takes exact coordinates from a real annotation. `##sequence-region` gives each replicon's length, `gene` features give coordinates, strand and name, and other feature types are ignored. Names land in `result.gene_names`, so you can follow a named gene through the run. `gff=` and `genes=` are mutually exclusive; a GFF already declares the genes ([Ge11](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_circular_nucleotide-->). GFF input keeps overlapping genes as they are by default. Genes that overlap share one block. Genes that only touch do not share a block. `trim_overlaps=True` (`--trim-overlaps`) still pushes each overlapping gene's start to its neighbour's end and drops any gene lying wholly inside another.
 
 A genome at this resolution is *rebuilt* rather than stored: the run keeps the **root partition**, the initial sequence cut at every breakpoint any lineage ever used, and how each node's genome is assembled from those pieces, which is what keeps a million-base genome down a large tree affordable. Appendix B names both (`.root_blocks`, `.assembly`).
 
