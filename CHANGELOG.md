@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.61.0] - 2026-11-22
+
 ### Added
 
 - Added `gy94`, Goldman and Yang's (1994) codon model, for gene families. Runs write DNA without stop codons. `omega` requires an explicit value to set selection on the protein. The codon model supports genetic codes 11 and 4. A branch length measures substitutions per base. `length` counts bases in multiples of 3. (#499)
