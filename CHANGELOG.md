@@ -9,6 +9,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- `simulate_sequences` now accepts `founding=` (`--founding`) and `family_multipliers=` (`--family-multipliers`) for family and ordered genome runs. Both accept files written by an earlier run. Both reject nucleotide genome runs, which take starting DNA through genome-level `gff=` and `fasta=`. Runs that pass neither argument remain unchanged. (#497)
+
 ## [0.59.1] - 2026-11-22
 
 ### Fixed
