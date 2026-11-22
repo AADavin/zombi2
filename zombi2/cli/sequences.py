@@ -33,7 +33,8 @@ from zombi2._runtime.report import write_run_report
 from zombi2.sequences import (IMPLEMENTED_MODIFIERS, _WRITE_OUTPUTS, _calibrate,
                               mean_pairwise_identity, simulate_sequences)
 from zombi2.sequences.substitution_models import (
-    PROFILE_MIXTURES, dayhoff, gtr, hky85, jc69, jtt, k80, lg, poisson, wag,
+    BASES, GENETIC_CODES, PROFILE_MIXTURES, dayhoff, gtr, gy94, hky85, jc69, jtt, k80, lg, poisson,
+    wag,
 )
 from zombi2.tree import read_newick
 from zombi2.cli.framework import (_add_compact_arg, _add_flat_arg, _add_force_arg, _add_quiet_arg, _add_parallel_arg, _add_from_arg,
@@ -68,6 +69,8 @@ _NUCLEOTIDE_MODELS = ("jc69", "k80", "hky85", "gtr")
 #: the spacer's job is to be the unconstrained null, and a second set of knobs would only blur that)
 _NUCLEOTIDE_CTORS = {"jc69": jc69, "k80": k80, "hky85": hky85, "gtr": gtr}
 _PROTEIN_MODELS = {"poisson": poisson, "jtt": jtt, "dayhoff": dayhoff, "wag": wag, "lg": lg}
+#: the codon models: DNA written three bases to a state, on a genetic code
+_CODON_MODELS = ("gy94",)
 
 # which physical parameters each model reads; a knob given for a model that does not take it is
 # rejected. Every model knob defaults to None, so "given" is simply "not None". A protein model
@@ -77,10 +80,11 @@ _MODEL_KNOBS = {
     "k80": ("kappa",),
     "hky85": ("kappa", "frequencies"),
     "gtr": ("frequencies", "exchangeabilities"),
+    "gy94": ("kappa", "frequencies", "omega", "code"),
     **{name: () for name in _PROTEIN_MODELS},
 }
 _KNOB_FLAG = {"kappa": "--kappa", "frequencies": "--frequencies",
-              "exchangeabilities": "--exchangeabilities"}
+              "exchangeabilities": "--exchangeabilities", "omega": "--omega", "code": "--code"}
 
 
 def _add_sequence_args(p: argparse.ArgumentParser) -> None:
@@ -95,13 +99,15 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
     # validated in run() (not argparse-`required`) so a --params file can supply it — a required
     # argument is never satisfied by a default, which is what --params sets.
     g.add_argument("--model", default=None, metavar="MODEL",
-                   choices=(*_NUCLEOTIDE_MODELS, *_PROTEIN_MODELS),
+                   choices=(*_NUCLEOTIDE_MODELS, *_CODON_MODELS, *_PROTEIN_MODELS),
                    # which knob goes with which model is on the knobs themselves ([k80, hky85] …)
                    help="substitution model (default jc69). nucleotide: jc69, k80, hky85, gtr. "
-                        "protein: poisson, jtt, dayhoff, wag, lg — empirical, no parameters to give")
+                        "protein: poisson, jtt, dayhoff, wag, lg, empirical, no parameters to give. "
+                        "codon model: gy94")
     g.add_argument("--length", type=int, default=None, metavar="N",
-                   help="alignment length in sites (default 1000). Rejected on a nucleotide run: "
-                        "each block has its own length")
+                   help="alignment length (default 999 for a codon model, 1000 otherwise). codon "
+                        "model lengths count bases in multiples of 3. rejected on nucleotide genome "
+                        "runs: each block has its own length")
     g.add_argument("--intergene-model", default=None, metavar="MODEL", dest="intergene_model",
                    choices=_NUCLEOTIDE_MODELS,
                    help="[nucleotide runs] model for the spacer between genes (default jc69); "
@@ -110,7 +116,13 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
                    dest="intergene_speed",
                    help="[nucleotide runs] spacer rate as a multiple of the gene rate (default 3.0)")
     g.add_argument("--kappa", type=float, default=None, metavar="K",
-                   help="[k80, hky85] transition/transversion ratio (default 2.0)")
+                   help="[k80, hky85, gy94] transition/transversion ratio (default 2.0)")
+    g.add_argument("--omega", type=float, default=None, metavar="W",
+                   help="[gy94] substitution rate multiplier for changes altering the amino acid "
+                        "relative to changes preserving it, required with --model gy94")
+    g.add_argument("--code", type=int, default=None, metavar="N", choices=sorted(GENETIC_CODES),
+                   help="[gy94] genetic code by NCBI translation-table number (default 11), 11 for "
+                        "bacteria and archaea, 4 for mycoplasmas")
     g.add_argument("--frequencies", type=float, nargs=4, default=None, metavar=("A", "C", "G", "T"),
                    help="[hky85, gtr] equilibrium base frequencies A C G T (must be positive and "
                         "sum to 1; default equal)")
@@ -178,6 +190,8 @@ def _resolve_model_knobs(args) -> dict:
     # floats, not ints: --exchangeabilities parses as float, so a default logged as [1, 1, …] would not match
     # the [1.0, …] a reproduced run logs — and the run report is meant to reproduce byte-for-byte.
     return {"kappa": 2.0 if args.kappa is None else args.kappa,
+            "omega": args.omega,
+            "code": 11 if args.code is None else args.code,
             "frequencies": [0.25, 0.25, 0.25, 0.25] if args.frequencies is None else list(args.frequencies),
             "exchangeabilities": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0] if args.exchangeabilities is None else list(args.exchangeabilities)}
 
@@ -239,6 +253,9 @@ def _build_model(args: argparse.Namespace):
             model = k80(kappa=kappa)
         elif args.model == "hky85":
             model = hky85(kappa=kappa, frequencies=frequencies)
+        elif args.model == "gy94":
+            model = gy94(omega=knobs["omega"], kappa=kappa, frequencies=frequencies,
+                         code=knobs["code"])
         else:
             model = gtr(exchangeabilities=exchangeabilities, frequencies=frequencies)
     if args.gamma_shape is not None or args.invariant:
@@ -262,7 +279,14 @@ def _identity_floor(model) -> float:
     sites match no matter how long the branch, so the floor is ``p + (1 - p)·Σπ²``. Without that
     term the saturation warning below would fire on a perfectly good ``+I`` run, whose identity
     cannot fall to ``Σπ²`` even in principle."""
-    chance = float(np.sum(np.asarray(model.stationary) ** 2))
+    if model.codons:
+        # the identity is read base by base, and a codon model's frequencies are over codons: two
+        # unrelated sequences agree at a position as often as that position's base frequencies say
+        pi = np.asarray(model.stationary)
+        chance = float(np.mean([sum(float(pi[[c[pos] == b for c in model.codons]].sum()) ** 2
+                                    for b in BASES) for pos in range(3)]))
+    else:
+        chance = float(np.sum(np.asarray(model.stationary) ** 2))
     invariant = model.site_shares[0] if model.site_rates[0] == 0.0 else 0.0
     return invariant + (1.0 - invariant) * chance
 
@@ -284,10 +308,14 @@ def run(args, parser):
     # reject a physical parameter given for a model that doesn't read it (e.g. --kappa with jc69),
     # so a silently-ignored flag can't give a misleading run — the genomes command's discipline
     allowed = set(_MODEL_KNOBS[args.model])
-    stray = [_KNOB_FLAG[k] for k in ("kappa", "frequencies", "exchangeabilities")
+    stray = [_KNOB_FLAG[k] for k in ("kappa", "frequencies", "exchangeabilities", "omega", "code")
              if getattr(args, k) is not None and k not in allowed]
     if stray:
         parser.error(f"these options don't apply to --model {args.model}: {', '.join(stray)}")
+    if args.model in _CODON_MODELS and args.omega is None:
+        parser.error(f"--model {args.model} needs --omega, the rate of a change that alters the "
+                     "amino acid relative to one that does not: 1 is no selection on the protein, "
+                     "0.1 lets one such change in ten through. No value is assumed")
     if args.mixture is not None and args.model not in _PROTEIN_MODELS:
         parser.error(f"--mixture {args.mixture} needs a protein model (--model lg, wag, jtt, "
                      f"dayhoff or poisson): its profiles are amino-acid frequencies, and "
@@ -321,6 +349,10 @@ def run(args, parser):
                              "genome run, which evolves blocks of a genome rather than families. "
                              "Its starting DNA is the genome level's: zombi2 genomes --resolution "
                              "nucleotide --gff … --fasta …")
+        if args.model in _CODON_MODELS:
+            parser.error(f"--model {args.model} is a codon model, and this handoff is a nucleotide "
+                         "genome run, where a gene sits on a strand and in a reading frame the "
+                         "model is not given yet. Run it on --resolution family or ordered")
         extra = dict(intergene_speed=args.intergene_speed)
         if args.intergene_model is not None:
             extra["intergene_model"] = _NUCLEOTIDE_CTORS[args.intergene_model]()
@@ -342,7 +374,9 @@ def run(args, parser):
                 parser.error(f"{flag} applies to a nucleotide genome run, where blocks are genes or "
                              "spacer. This handoff has gene families only, so there is nothing for a "
                              "second model to evolve.")
-        extra = dict(length=1000 if args.length is None else args.length)
+        # 999 under a codon model: the default has to be a whole number of codons
+        default_length = 999 if args.model in _CODON_MODELS else 1000
+        extra = dict(length=default_length if args.length is None else args.length)
         if args.founding is not None:
             extra["founding"] = args.founding
         if args.family_multipliers is not None:

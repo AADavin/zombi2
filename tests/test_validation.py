@@ -140,7 +140,8 @@ from zombi2.genomes.ordered import Inversion
 from zombi2.joint import simulate
 from zombi2.params.mapping import Curve
 from zombi2.sequences import simulate_sequences
-from zombi2.sequences.substitution_models import BASES, gtr, hky85, jc69, k80, lg, poisson
+from zombi2.sequences.substitution_models import (BASES, gtr, gy94, hky85, jc69, k80, lg,
+                                                  poisson)
 from zombi2.species import simulate_species_tree
 from zombi2.traits import discrete, simulate_continuous, simulate_discrete
 
@@ -938,6 +939,119 @@ def test_hky85_holds_the_composition_it_was_given_and_stays_reversible():
         assert abs(_z(np.array(sample), 0.0)) < Z_MAX, (
             f"{'ACGT'[i]}→{'ACGT'[j]} and {'ACGT'[j]}→{'ACGT'[i]} do not balance "
             f"(relative asymmetry {np.mean(sample):+.4f}) — the model is not reversible")
+
+
+def test_gy94_is_the_process_goldman_and_yang_wrote_down():
+    """A codon model's three promises, each against a number written out from the model's
+    definition rather than read off the matrix under test.
+
+    Goldman & Yang (1994), in the form Yang's M0 made standard: codon ``i`` becomes codon ``j`` at
+    rate ``π_j`` times ``κ`` if the one base that differs is a transition, times ``ω`` if the amino
+    acid changes, and at rate 0 if more than one base differs or ``j`` is a stop.
+
+    **The synonymous share.** On a branch short enough that a codon changes at most once, the share
+    of changed codons that keep their amino acid is the synonymous share of the total rate:
+    ``Σ π_i q_ij`` over synonymous pairs, over the same sum over every pair. It is computed here
+    from the genetic code and the three parameters. A model with ``ω`` on the wrong side, or left
+    out, lands far from it — at ``ω = 1`` the share is what ``κ`` and the code alone give.
+
+    **The unit.** Every change is one base, so a branch of length ``d`` changes ``d`` of the bases,
+    to first order — a branch length is substitutions per base, as for every other DNA model. Read
+    per codon instead, the convention codon programs print, the count would be a third of this.
+
+    **The composition, and no stop.** Codon frequencies built from base frequencies are stationary,
+    so the bases at the tips of the tree sit where those frequencies put them, position by
+    position. And a stop codon is not a state, so none is ever written.
+
+    The branches are kept short for the first two, which makes the first-order forms exact to well
+    inside the tolerance, and the composition is read across independent replicates, as for
+    HKY85."""
+    kappa, omega, base_freq = 2.5, 0.15, (0.35, 0.15, 0.2, 0.3)
+    table = dict(zip((a + b + c for a in "TCAG" for b in "TCAG" for c in "TCAG"),
+                     "FFLLSSSSYY**CC*WLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG"))
+    sense = [c for c in table if table[c] != "*"]
+    freq = dict(zip(BASES, base_freq))
+    weight = {c: freq[c[0]] * freq[c[1]] * freq[c[2]] for c in sense}
+    total = sum(weight.values())
+    pi = {c: w / total for c, w in weight.items()}
+    syn_rate = all_rate = 0.0
+    for x in sense:
+        for y in sense:
+            changed = [(a, b) for a, b in zip(x, y) if a != b]
+            if len(changed) != 1:
+                continue
+            q = pi[x] * pi[y] * (kappa if set(changed[0]) in ({"A", "G"}, {"C", "T"}) else 1.0) \
+                * (1.0 if table[x] == table[y] else omega)
+            all_rate += q
+            syn_rate += q if table[x] == table[y] else 0.0
+    expected_share = syn_rate / all_rate
+    # the bases a codon position holds at equilibrium
+    expected_base = [sum(p for c, p in pi.items() if c[pos] == b) for pos in range(3) for b in BASES]
+
+    model = gy94(omega=omega, kappa=kappa, frequencies=base_freq)
+    substitution, reps = 0.004, 40
+    codon_changes = synonymous = base_changes = 0
+    expected_base_changes = 0.0
+    composition = []
+    for seed in range(reps):
+        tree, genomes = _one_copy_per_lineage(n_extant=8, families=4, seed=seed)
+        run = simulate_sequences(genomes, model=model, length=1500, substitution=substitution,
+                                 seed=seed)
+        counts = np.zeros(12)
+        for family in genomes.gene_trees:
+            every = {**run.ancestral[family], **run.alignments[family]}
+            assert not any(table[s[i:i + 3]] == "*" for s in (*every.values(), run.founding[family])
+                           for i in range(0, len(s), 3)), "a stop codon was written"
+            for sequence in run.alignments[family].values():
+                bases = _codes(sequence)
+                for pos in range(3):
+                    counts[4 * pos:4 * pos + 4] += np.bincount(bases[pos::3], minlength=4)
+            by_node = {int(label.split("_", 1)[0][1:]): s for label, s in every.items()}
+            for node in tree.nodes.values():
+                before = run.founding[family] if node.parent is None else by_node[node.parent]
+                after = by_node[node.id]
+                d = substitution * (node.end_time - node.birth_time)
+                expected_base_changes += d * len(after)
+                for i in range(0, len(after), 3):
+                    a, b = before[i:i + 3], after[i:i + 3]
+                    if a != b:
+                        codon_changes += 1
+                        synonymous += table[a] == table[b]
+                        base_changes += sum(x != y for x, y in zip(a, b))
+        composition.append(counts / counts.reshape(3, 4).sum(axis=1).repeat(4))
+
+    assert codon_changes > 5_000, "too few substitutions to say anything"
+    share = synonymous / codon_changes
+    se = math.sqrt(expected_share * (1 - expected_share) / codon_changes)
+    assert abs(share - expected_share) / se < Z_MAX, (
+        f"{share:.4f} of the changed codons keep their amino acid, but κ = {kappa}, ω = {omega} "
+        f"and the genetic code give {expected_share:.4f}")
+    neutral = gy94(omega=1.0, kappa=kappa, frequencies=base_freq)   # what ω left out would give
+    assert expected_share > 0.5 > 0.4 > _synonymous_rate_share(neutral, table)
+
+    ratio = base_changes / expected_base_changes
+    assert 0.95 < ratio < 1.03, (
+        f"{base_changes} bases changed where a branch length read per base expects "
+        f"{expected_base_changes:.0f} (ratio {ratio:.3f}); read per codon it would be near 0.33")
+
+    composition = np.array(composition)
+    for k, expected in enumerate(expected_base):
+        assert abs(_z(composition[:, k], expected)) < Z_MAX, (
+            f"{BASES[k % 4]} at codon position {k // 4 + 1} settles at {composition[:, k].mean():.4f}, "
+            f"but the codon frequencies put it at {expected:.4f}")
+
+
+def _synonymous_rate_share(model, table) -> float:
+    """The synonymous share of a codon model's total rate, read off its matrix — used only to show
+    which way ``ω`` moves it, never as the expectation a run is held to."""
+    syn = every = 0.0
+    for i, x in enumerate(model.codons):
+        for j, y in enumerate(model.codons):
+            if i != j:
+                flow = model.stationary[i] * model.Q[i, j]
+                every += flow
+                syn += flow if table[x] == table[y] else 0.0
+    return syn / every
 
 
 def test_an_empirical_protein_matrix_is_simulated_at_its_own_stationary_distribution():

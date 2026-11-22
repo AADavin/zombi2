@@ -15,7 +15,7 @@ Two things therefore have to be chosen: *what* changes (the substitution model, 
 
 ## The substitution models
 
-ZOMBI2 implements nine standard models of sequence evolution.
+ZOMBI2 implements ten standard models of sequence evolution.
 
 | Model | Alphabet | Parameters | From the literature |
 |---|---|---|---|
@@ -23,6 +23,7 @@ ZOMBI2 implements nine standard models of sequence evolution.
 | `k80` | bases | `kappa` | [@kimura1980simple] |
 | `hky85` | bases | `kappa`, `frequencies` | [@hasegawa1985dating] |
 | `gtr` | bases | `exchangeabilities`, `frequencies` | [@tavare1986some] |
+| `gy94` | bases | `omega`, `kappa`, `frequencies`, `code` | [@goldman1994codon] |
 | `poisson` | residues | none | equal-rate protein null |
 | `dayhoff` | residues | none | [@dayhoff1978model] |
 | `jtt` | residues | none | [@jones1992rapid] |
@@ -31,9 +32,24 @@ ZOMBI2 implements nine standard models of sequence evolution.
 
 The model decides the alphabet, and `length` counts whatever that alphabet holds. The nucleotide models are four different rate matrices rather than one model with four settings, but they nest in the order written, since `jc69` is `k80` with `kappa=1` and `k80` is `hky85` with equal base frequencies, so each step down the table adds free parameters. The protein matrices are **empirical**, each estimated once from a large set of real alignments and then used as a fixed table, which is why they take no parameters of their own ([Sq3](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:seq_protein-->).
 
+### Codon models
+
+A nucleotide model treats the three positions of a codon alike. Genes evolved under a nucleotide model gain stop codons and amino acid changes far faster than real genes. `gy94` implements the codon model of Goldman and Yang (1994). It uses codon states and excludes stop codons.
+
+```python
+from zombi2 import species, genomes, sequences
+from zombi2.sequences.substitution_models import gy94
+
+tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
+my_genomes = genomes.simulate_genomes_family(tree, initial_families=20, seed=1)
+sequences.simulate_sequences(my_genomes, model=gy94(omega=0.1), length=300)
+```
+
+Choose `omega` for selection, `kappa` for transition bias (default 2.0), and `code` for the NCBI genetic code (default 11). Required `omega` has no default: 1 means no selection on the protein, while 0.1 lets one amino acid change in ten through. `length` counts bases and must be a multiple of 3. A branch length measures substitutions per base. This release refuses nucleotide genome runs, joint runs, `record=True`, sequence-level indels, `profiles=`, profile mixtures, and mixed codon and nucleotide models within families.
+
 ### Your own matrix
 
-If none of the nine is the model you want, write the matrix yourself. `reversible` takes a symmetric **exchangeability** matrix $S$ and stationary frequencies $\pi$, and returns a model like any other: the rate of $i \to j$ is $Q_{ij} = S_{ij}\,\pi_j$, scaled so that one unit of branch length is one expected substitution per site, the same scaling every model on the menu gets, so a phylogram from your matrix compares with one from `hky85` without converting anything. This is the constructor the menu itself uses, and ([Sq11](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:custom_matrix-->) rebuilds HKY85 with it by hand. You give $S$ and $\pi$ rather than $Q$ directly, and the restriction is deliberate: the engine's matrix exponential is only valid for a **time-reversible** model, which a symmetric $S$ times $\pi$ satisfies by construction; a general $Q$ is refused with an error rather than run. Pass `alphabet=AMINO_ACIDS` for a twenty-state matrix of your own. There is no command-line flag for a custom matrix: a twenty-state matrix is 190 numbers, which is a file format rather than an argument.
+If none of the ten is the model you want, write the matrix yourself. `reversible` takes a symmetric **exchangeability** matrix $S$ and stationary frequencies $\pi$, and returns a model like any other: the rate of $i \to j$ is $Q_{ij} = S_{ij}\,\pi_j$, scaled so that one unit of branch length is one expected substitution per site, the same scaling every model on the menu gets, so a phylogram from your matrix compares with one from `hky85` without converting anything. This is the constructor the menu itself uses, and ([Sq11](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:custom_matrix-->) rebuilds HKY85 with it by hand. You give $S$ and $\pi$ rather than $Q$ directly, and the restriction is deliberate: the engine's matrix exponential is only valid for a **time-reversible** model, which a symmetric $S$ times $\pi$ satisfies by construction; a general $Q$ is refused with an error rather than run. Pass `alphabet=AMINO_ACIDS` for a twenty-state matrix of your own. There is no command-line flag for a custom matrix: a twenty-state matrix is 190 numbers, which is a file format rather than an argument.
 
 ## Rate variation across sites
 

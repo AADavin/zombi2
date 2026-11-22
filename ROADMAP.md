@@ -68,7 +68,7 @@ drawn, inherited and driven clocks, and a substitution rate drawn among gene fam
 | Epoch clock | The substitution rate as a piecewise function of time (`changing_at` at this level). | planned |
 | White-noise clock | An uncorrelated clock whose branch factor has variance shrinking with branch duration — the one i.i.d. clock that stays the same model when a branch is split. | planned |
 | Free site-rate categories | User-chosen rate categories and weights beside `gamma_shape`. The machinery exists; the written form does not. | considering |
-| Codon models | GY94/MG94 with ω, the site-model series on top, and mutation–selection models (site-wise fitnesses) as the natural extension. | considering |
+| More codon models | Codon models in nucleotide genome runs, MG94, `omega` varying among sites, and mutation-selection models with fitnesses per site. | planned |
 | User profiles on the parallel engine | The published mixtures C10 to C60 run on both engines; a user's own `profiles=` table still runs serially only. | considering |
 | Covarion | Hidden rate-switching states over a doubled alphabet. | considering |
 | Heterotachy | A site's rate class re-drawn within clades. Refused by name today: it breaks the once-per-family class draw the engine's speed rests on. | considering |

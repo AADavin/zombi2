@@ -148,6 +148,8 @@ _VIA_CONSTRUCTOR = {
     "kappa": "zombi2.sequences.substitution_models:hky85",
     "frequencies": "zombi2.sequences.substitution_models:hky85",
     "exchangeabilities": "zombi2.sequences.substitution_models:gtr",
+    "omega": "zombi2.sequences.substitution_models:gy94",
+    "code": "zombi2.sequences.substitution_models:gy94",
     "gamma-shape": "zombi2.sequences.substitution_models:SubstitutionModel.across_sites",
     "invariant": "zombi2.sequences.substitution_models:SubstitutionModel.across_sites",
     "rate-categories": "zombi2.sequences.substitution_models:SubstitutionModel.across_sites",

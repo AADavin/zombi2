@@ -87,6 +87,12 @@ class Models:
                     f"{m.name} over {m.alphabet!r}. One gene copy's sequence is one string, so a "
                     f"run has one alphabet: a clade may evolve under a different matrix, not over "
                     f"different residues.")
+            if m.codons != first[1].codons:
+                raise ValueError(
+                    f"{first[0]!r} is {first[1].name} and {label!r} is {m.name}, and the two do "
+                    f"not have the same states: one is a codon model and the other is not, or "
+                    f"they are built on different genetic codes. A site keeps its state from one "
+                    f"clade into the next, so every model of a set has to have the same states.")
             if m.site_rates != first[1].site_rates or m.site_shares != first[1].site_shares:
                 raise ValueError(
                     f"{first[0]!r} is {first[1].name} and {label!r} is {m.name}, whose across-site "
@@ -116,6 +122,11 @@ class Models:
     def alphabet(self) -> str:
         """The one alphabet every model in the set shares — checked in `set_by`."""
         return next(iter(self.models.values())).alphabet
+
+    @property
+    def codons(self) -> tuple[str, ...]:
+        """The codons every model in the set shares, or ``()`` — checked in `set_by`."""
+        return next(iter(self.models.values())).codons
 
     @property
     def name(self) -> str:

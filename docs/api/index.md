@@ -51,7 +51,7 @@ its page, not as a module of its own.
 | Section | What it holds |
 |---|---|
 | [Who receives a transfer](genomes.md#who-receives-a-transfer) | the transfer-recipient rules — `Distance`, `Clades`, `Between` |
-| [The substitution-model menu](sequences.md#the-substitution-model-menu) | the substitution models — `jc69` · `k80` · `hky85` · `gtr`, and the protein models `poisson` · `jtt` · `dayhoff` · `wag` · `lg` |
+| [The substitution-model menu](sequences.md#the-substitution-model-menu) | the substitution models — `jc69` · `k80` · `hky85` · `gtr`, the codon model `gy94`, and the protein models `poisson` · `jtt` · `dayhoff` · `wag` · `lg` |
 
 ## Reading a run back
 
