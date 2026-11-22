@@ -66,12 +66,14 @@ def test_accepts_an_iterable_of_lines():
     assert lengths == {"c": 100} and genes[0].name == "x"
 
 
-def test_rejects_overlapping_genes(tmp_path):
+def test_overlapping_genes_are_kept_as_they_are(tmp_path):
+    # an overlap is not an error: both genes come back at their own coordinates, and the engine lays
+    # them down on one block (tests/test_genomes_overlapping.py)
     gff = _write(tmp_path, HEADER +
                  "chrom1\t.\tgene\t100\t200\t.\t+\t.\tID=a\n"
                  "chrom1\t.\tgene\t150\t300\t.\t+\t.\tID=b\n")
-    with pytest.raises(ValueError, match="overlap"):
-        read_gff(gff)
+    _lengths, genes = read_gff(gff)
+    assert [(g.name, g.start, g.end) for g in genes] == [("a", 99, 200), ("b", 149, 300)]
 
 
 def test_touching_genes_are_allowed(tmp_path):
@@ -116,11 +118,9 @@ def test_trim_overlapping_genes_shortens_and_is_idempotent():
     assert again == out and n == 0 and d == []
 
 
-def test_read_gff_can_trim_instead_of_raising(tmp_path):
+def test_read_gff_can_trim_overlapping_genes(tmp_path):
     text = (HEADER + "chrom1\t.\tgene\t101\t200\t.\t+\t.\tID=a\n"
                      "chrom1\t.\tgene\t150\t300\t.\t+\t.\tID=b\n")
     path = tmp_path / "ov.gff"; path.write_text(text, encoding="utf-8")
-    with pytest.raises(ValueError, match="trim_overlaps=True"):
-        read_gff(path)
     _lengths, genes = read_gff(path, trim_overlaps=True)
     assert [(g.name, g.start, g.end) for g in genes] == [("a", 100, 200), ("b", 200, 300)]

@@ -373,7 +373,8 @@ From Python: `.genomes` · `.node_genomes` (each a `NucleotideGenome`: a list of
 list of `Block`s), `.root_blocks` · `.block_trees` (the recovered root partition and a tree for every
 interval), `.assembly(node)` · `.initial_assembly()`, `.mosaic(node)` · `.trace_back(node)` ·
 `.describe(node)`,
-`.deletions` (the indel log), `.gene_spans` · `.gene_names` · `.gene_strands` · `.block_of(family)`,
+`.deletions` (the indel log), `.gene_spans` · `.gene_names` · `.gene_strands` · `.block_of(family)` ·
+`.gene_span_in_block(family)`,
 and the driver views `.presence(name)` · `.completion(name)`, which here are based on **declared
 genes**: the name is the GFF's `ID` / `Name`, and what takes a gene away is an arc of DNA rather
 than a whole copy.
@@ -460,11 +461,13 @@ not read it. Only deletions are here: an **insertion** brings material that desc
 it must begin a copy lineage and is recorded in `events` as a root of its own kind. Written into
 `block_events.tsv` under kind `deletion`, which is also how it is read back.
 
-**`.gene_spans` and `.block_of(family)`**: `{family: (source, start, end)}` in initial coordinates, a
-named gene's family id and coding strand from a GFF, and the block index a family occupies. That last
-one is the join between the two numbering schemes here: `.gene_spans` and `.gene_trees` are keyed by
-family, `.root_blocks` and `.block_trees` by block index, both plain integers, so mixing them up is
-otherwise silent.
+**`.gene_spans`, `.block_of(family)` and `.gene_span_in_block(family)`**: `.gene_spans` maps each
+family to `(source, start, end)` in initial coordinates. GFF genes keep their own names and coding
+strands. `.block_of(family)` returns the block index holding the gene. Overlapping genes share that
+index. `.gene_span_in_block(family)` returns `(block, start, end)`. `[start, end)` gives the gene's
+columns in the block's alignment and founding sequence, counted from the block's start. `.gene_spans`
+and `.gene_trees` use family ids, while `.root_blocks` and `.block_trees` use block indices. Both
+numbering schemes use integers, so mixing them up can fail silently.
 
 Three event files, because a nucleotide run records three different things: the genealogy in the one
 format every resolution writes, the interval record only this resolution has, and what moved without
@@ -567,8 +570,9 @@ On a **nucleotide** genome run every block evolves, spacer as well as gene, so a
 writes *b* alignments and *b* phylograms, and that is what makes the genomes assemblable. The number in
 those filenames is then a **root block index**, not a gene family id, and the files say so: `block6.fasta`,
 `phylogram_block6_complete.nwk` and `sequences_ancestral_block6.fasta` in place of `fam6.…`, and
-`sequences_founding.fasta`'s records are `block<b>` rather than `fam<f>`. The two numbering schemes are
-different, so go from a gene to its block with `genomes.block_of(family)` (Ch5). `zombi2 sequences` reads a nucleotide
+`sequences_founding.fasta`'s records are `block<b>` rather than `fam<f>`. The numbering schemes differ, so get a gene's block with `genomes.block_of(family)` (Ch5). Get one
+gene's columns within that block with `genomes.gene_span_in_block(family)`, which returns
+`(block, start, end)` with a half-open range. `zombi2 sequences` reads a nucleotide
 handoff too, recognising one by its `blocks.tsv`, so all of this is reachable from the command line.
 
 ## Joint: `joint.simulate` / `zombi2 joint`

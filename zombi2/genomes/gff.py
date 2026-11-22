@@ -46,7 +46,8 @@ def trim_overlapping_genes(genes: list[GffGene]) -> tuple[list[GffGene], int, li
     """Shorten genes so that none overlap, and report what that cost.
 
     Real bacterial annotations **do** overlap — usually by a base or two where genes abut in an operon,
-    occasionally by more. Here a gene is an *indivisible block* laid end to end, so overlaps have to go.
+    occasionally by more. By default those genes are kept and share one block; this is the other
+    choice, which gives every gene a block of its own by removing the overlaps.
     Walking each replicon in coordinate order, a gene starting before the previous one ends has its
     **start pushed** to that end; one swallowed whole is dropped. Returns ``(genes, trimmed, dropped)``
     — the resolved genes, how many were shortened, and the names of any dropped."""
@@ -70,12 +71,11 @@ def read_gff(source, *, trim_overlaps: bool = False) -> tuple[dict[str, int], li
     """Read ``source`` (a path or an iterable of lines) and return ``({seqid: length}, [GffGene, …])``,
     the genes sorted by replicon and start.
 
-    Genes are indivisible blocks laid end to end, so they may **touch but never overlap**. Real
-    annotations do overlap, so pass ``trim_overlaps=True`` to shorten them instead of raising (see
-    `trim_overlapping_genes()`).
+    Keep overlapping genes as they are by default. Genes that overlap share one block. Genes that
+    only touch do not share a block. Pass ``trim_overlaps=True`` to shorten overlapping genes and
+    drop genes lying wholly inside another (see `trim_overlapping_genes()`).
 
-    Raises `ValueError` on a malformed line, a gene outside its replicon, or — unless
-    ``trim_overlaps`` — two genes that overlap."""
+    Raises `ValueError` on a malformed line or a gene outside its replicon."""
     if isinstance(source, (str, pathlib.Path)):
         lines = pathlib.Path(source).read_text(encoding="utf-8").splitlines()
     else:
@@ -115,12 +115,6 @@ def read_gff(source, *, trim_overlaps: bool = False) -> tuple[dict[str, int], li
     genes.sort(key=lambda g: (g.seqid, g.start))
     if trim_overlaps:
         genes, _trimmed, _dropped = trim_overlapping_genes(genes)
-    else:
-        for a, b in zip(genes, genes[1:]):               # laid end to end: may touch, never overlap
-            if a.seqid == b.seqid and b.start < a.end:
-                raise ValueError(f"genes {a.name!r} and {b.name!r} overlap on {a.seqid!r} "
-                                 f"([{a.start}, {a.end}) and [{b.start}, {b.end})) — pass "
-                                 f"trim_overlaps=True to shorten them instead")
     declared = set(lengths)                              # replicons given by ##sequence-region
     for g in genes:                                      # any other replicon ends at its last gene
         if g.seqid not in declared:

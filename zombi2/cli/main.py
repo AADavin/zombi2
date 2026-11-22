@@ -241,17 +241,17 @@ def _did_you_mean(extra: list[str], command: argparse.ArgumentParser) -> str:
     return ""
 
 
-#: a keyword argument named in a library message — ``trim_overlaps=True``, ``switch=``,
-#: ``total_time=...`` — with the placeholder value the sentence does not need once it is a flag
+#: a keyword argument named in a library message — ``switch=``, ``total_time=...`` — with the
+#: placeholder value the sentence does not need once it is a flag
 _KWARG = re.compile(r"\b([a-z][a-z0-9_]*)=(?:True|\.\.\.)?(?![\w'\"(])")
 
 
 def _in_flags(message: str, command: argparse.ArgumentParser) -> str:
     """Respell a library message's keyword arguments as the flags that reach them.
 
-    The engines raise for a Python caller, so their advice is spelt ``pass trim_overlaps=True`` —
+    The engines raise for a Python caller, so their advice is spelt ``give total_time=...`` —
     right in a notebook, and a dead end at a shell prompt where the thing to type is
-    ``--trim-overlaps``. Every long option **is** its level's keyword name (the invariant each
+    ``--total-time``. Every long option **is** its level's keyword name (the invariant each
     command module opens with), so the translation is exact and mechanical: swap the name for the
     flag, and drop the ``=`` along with a value that was only ever a placeholder.
 

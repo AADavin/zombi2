@@ -8,8 +8,8 @@ ordered list of **blocks**. The vocabulary (fixed here, once):
   ancestry, the half-open interval ``[start, end)`` on an ancestral ``source``, read forward (``strand``
   ``+1``) or reverse-complemented (``-1``). Blocks are **not** merged during the run — an event only
   ever *splits* — so maximality is a property of the *recovered* root-blocks, not the working ones.
-- **gene / intergene** — a *classification* of blocks: a **gene** is a *declared, indivisible* block
-  (one family, one id, **never split**) carrying one gene tree; an **intergene** is the spacer, which
+- **gene / intergene**: a **gene** is *declared* and never split by a breakpoint, with its own
+  family id and gene tree. Genes that overlap share one block. An **intergene** is the spacer, which
   fragments freely into many blocks.
 - **segment** — *not* an object: the **extent** a single event acts on, the arc ``[start,
   start+length)``. "An inversion inverts a segment of a chromosome."
@@ -64,7 +64,7 @@ contributes its own edge; an intergene contributes its whole interior. Every bre
 the extent distribution you asked for, restricted to the ends that exist. Nothing is clipped, nothing is
 snapped (snapping would inflate an extent to "whatever it takes to clear the gene"), and nothing is
 silently dropped for running out of retries. So a gene is only ever engulfed **whole**, never split, and
-each recovers as exactly one root-block with one gene tree.
+each block of genes recovers as exactly one root-block, with one gene tree for each gene on it.
 
 A consequence worth stating, because the code got it wrong for a while: a genome with **no spacer at
 all** — ten 100 bp genes in 1000 bp — is not frozen. Its gene boundaries are legal cuts like any other,
@@ -140,9 +140,10 @@ class Block:
     reads it to resolve *which copy begat which*.
 
     ``gene`` is the **genic classification**: ``0`` for an **intergene** (the free-fragmenting spacer),
-    or the **gene family id** for a **gene** — a *declared, indivisible* block that is **never split**
-    (an event that would cut one redraws instead). A duplicated gene keeps its family and gets a fresh
-    ``copy``.
+    or a **gene family id** for a block that holds genes — *declared*, and **never split** by a
+    breakpoint. A gene that overlaps nothing is a block of its own, tagged with its own family. Genes
+    that overlap share one block, tagged with the first of them. A duplicated block keeps its tag and
+    gets a fresh ``copy``.
 
     Blocks are **not** kept maximal during the run — a rearrangement leaves collinear neighbours split
     rather than merging them (merging would muddy the copy-lineage bookkeeping). Maximality is instead
@@ -238,10 +239,11 @@ class Chromosome:
     id: int
     topology: str
     blocks: list[Block]
-    #: ``{family: (source, start, end)}`` — the run's **declared** gene spans, shared read-only.
-    #: The rule this class enforces is about *genes*, and a gene is not the same thing as a block
-    #: once an indel has cut one into fragments: each fragment is still tagged with the family, and
-    #: without the span there is no way to tell the gene's own outer edge from a boundary inside it.
+    #: ``{a block's tag: (source, start, end)}`` — the span of every block that holds genes, shared
+    #: across the run: a gene's own span, or the span of all the genes that overlap it.
+    #: The rule this class enforces is about *genes*, and a gene block is not the same thing as a
+    #: `Block` once an indel has cut one into fragments: each fragment keeps the tag, and
+    #: without the span there is no way to tell the block's own outer edge from a boundary inside it.
     #: This is the annotation the engine was *given*, not bookkeeping it produces — which is why it
     #: is held here, where the rule is, rather than recorded onto the events (`_skippable_bounds`).
     #: ``None`` — a chromosome built by hand or read back from a file — means no declared genes, and
@@ -931,11 +933,11 @@ class NucleotideGenomesResult:
     rearrangements: list[Inversion | Translocation | Transposition]
     chromosome_events: list[ChromosomeEvent]
     seed: int | None
-    #: ``{gene family id: (source, start, end)}`` — where each gene sits in the root coordinate
-    #: space: those declared at the start, and the de-novo ones ``origination`` and
-    #: ``chromosome_origination`` added along the way, each against the source it arrived on. Empty
-    #: when no genes were declared and none originated. A gene is never split, so its span is fixed
-    #: for the whole run and is exactly the root-block that carries its gene tree.
+    #: ``{gene family id: (source, start, end)}`` records each gene's span in the root coordinate
+    #: space. This includes genes declared at the start and genes added by ``origination`` or
+    #: ``chromosome_origination``, each against the source it arrived on. Empty when no genes were
+    #: declared and none originated. A gene is never cut by an event. Its span stays fixed for the
+    #: whole run. It is its own root block unless it overlaps another gene.
     gene_spans: dict[int, tuple[int, int, int]] = field(default_factory=dict)
     #: ``{name: gene family id}`` for genes declared with a name (a GFF ``ID`` / ``Name``) — the handle
     #: to look a named gene up in `gene_spans` / `gene_trees`, and to read one as a driver
@@ -997,12 +999,14 @@ class NucleotideGenomesResult:
 
         A block is a stretch of DNA with one unbroken ancestry, written as the interval it came from
         on the **initial** sequence and the strand it is read on, so a gene keeps its coordinates
-        wherever it turns up and whichever way it points. A gene is always one block, because
-        nothing may cut one; a run of intergene lines is spacer that events have cut apart.
+        wherever it turns up and whichever way it points. A gene occupies its own block unless it
+        overlaps another gene, in which case the genes share one block and its line names them all.
+        A run of intergene lines is spacer that events have cut apart.
 
         Genes declared with a name (from a GFF) are named; the rest are numbered by family.
         """
-        by_span = {span: fam for fam, span in self.gene_spans.items()}
+        _tag, spans, members = self._blocks_of_genes()
+        by_span = {span: members[first] for first, span in spans.items()}
         named = {fam: name for name, fam in self.gene_names.items()}
         # `node_label` and not an f-string: a lineage that died is `e5`, and the one place that
         # spelling is decided is the tree's own helper
@@ -1012,8 +1016,9 @@ class NucleotideGenomesResult:
         for chromosome, blocks in self.mosaic(node_id).items():
             out.append(f"{name}, chromosome {chromosome}")
             for source, start, end, strand in blocks:
-                fam = by_span.get((source, start, end))
-                what = "intergene" if fam is None else named.get(fam, f"gene {fam}")
+                fams = by_span.get((source, start, end))
+                what = ("intergene" if fams is None
+                        else ", ".join(named.get(fam, f"gene {fam}") for fam in fams))
                 out.append(f"  [{start:4d},{end:4d}) {'+' if strand == 1 else '−'} "
                            f"{end - start:4d} bp  {what}")
         return "\n".join(out)
@@ -1081,6 +1086,18 @@ class NucleotideGenomesResult:
         return len(self.deletions) + sum(1 for e in self.events
                                          if isinstance(e, Origination) and e.kind == "insertion")
 
+    def _blocks_of_genes(self):
+        """``(tag, spans, members)`` — `_gene_blocks()` of this run's genes, cached, plus
+        ``{tagging family: [every family on that block, in coordinate order]}``. One entry per gene
+        block; a list longer than one is a group of overlapping genes."""
+        if not hasattr(self, "_gene_block_cache"):
+            tag, spans = _gene_blocks(self.gene_spans)
+            members: dict[int, list[int]] = {first: [] for first in spans}
+            for fam in sorted(tag, key=lambda f: (self.gene_spans[f][1], f)):
+                members[tag[fam]].append(fam)
+            self._gene_block_cache = (tag, spans, members)
+        return self._gene_block_cache
+
     def _recover(self):
         if not hasattr(self, "_recovered"):
             self._recovered = _recover_gene_trees(self)
@@ -1119,8 +1136,9 @@ class NucleotideGenomesResult:
         return self._recover_blocks()[1]
 
     def block_of(self, family: int) -> int:
-        """The index in `root_blocks` of the block a declared **gene family** occupies — the join
-        between the two numbering schemes this resolution has.
+        """The index in `root_blocks` of the block that holds a declared **gene family** — the join
+        between the two numbering schemes this resolution has. Overlapping genes share that index,
+        and `gene_span_in_block()` says where in the block each one sits.
 
         They are both plain ints over overlapping ranges, so mixing them up is silent: ``gene_spans``
         and ``gene_trees`` are keyed by **gene family id**, while ``root_blocks``, ``block_trees`` and
@@ -1134,13 +1152,26 @@ class NucleotideGenomesResult:
         The reverse lookup is one line: ``{span: fam for fam, span in g.gene_spans.items()}`` read at
         ``root_blocks[i]``."""
         span = self.gene_spans[family]                    # KeyError: never declared
+        tag, spans, _members = self._blocks_of_genes()
         try:
-            return self.root_blocks.index(span)
+            return self.root_blocks.index(spans[tag[family]])
         except ValueError:
             raise LookupError(
                 f"gene family {family} spans {span} but has no recovered root block — no node in the "
                 "tree still carries it, so nothing was reconstructed for it. gene_trees leaves such a "
                 "family out for the same reason.") from None
+
+    def gene_span_in_block(self, family: int) -> tuple[int, int, int]:
+        """Return ``(block, start, end)`` for the gene with the given family id.
+
+        ``block`` matches ``block_of(family)``. ``[start, end)`` gives the gene's columns in the
+        block's alignment and founding sequence, counted from the block's start. The block uses the
+        initial sequence's orientation. Reverse-complement a minus-strand gene to read its coding
+        sequence. Raise the same errors as ``block_of``."""
+        block = self.block_of(family)
+        _src, start, end = self.gene_spans[family]
+        at = self.root_blocks[block][1]
+        return block, start - at, end - at
 
     def assembly(self, node_id: int) -> dict[int, list[tuple[int, int, int, int, int]]]:
         """How this node's genome is built out of the recovered root blocks:
@@ -1465,21 +1496,36 @@ class NucleotideGenomesResult:
         strand from the annotation, flipped if the block carrying it has been inverted since the root.
         That product is the point of the file — a gene that an inversion turned over says so."""
         name_of = {fam: name for name, fam in self.gene_names.items()}
+        _tag, _spans, members = self._blocks_of_genes()
         out = ["##gff-version 3"]
         for chrom in genome.chromosomes:
             out.append(f"##sequence-region {label}_chr{chrom.id} 1 {chrom.length}")
-        for n, (chrom, at, b) in enumerate(
-                (x for x in self._laid_out(genome) if x[2].is_gene), start=1):
-            strand = "+" if self.gene_strands.get(b.gene, 1) * b.strand == 1 else "-"
-            # ID is a plain per-file counter, because GFF wants one unique handle and nothing else
-            # here is: `copy` is the *block's* copy lineage, and a whole replicon is laid down as one, so
-            # every gene on it shares it until something duplicates them apart. What joins this row to
-            # the rest of the run is `family` — its gene tree, and its alignment via block_of(family).
-            named = f"Name={name_of[b.gene]};" if b.gene in name_of else ""
-            attrs = (f"ID=gene{n};{named}family={b.gene};copy={b.copy};"
-                     f"source={b.source}:{b.start}-{b.end}")
-            out.append(f"{label}_chr{chrom.id}\tZOMBI2\tgene\t{at + 1}\t{at + b.length}\t.\t"
-                       f"{strand}\t.\t{attrs}")
+        n = 0
+        for chrom, at, b in self._laid_out(genome):
+            if not b.is_gene:
+                continue
+            # A block holds one gene, or several that overlap. Each is written where it sits inside
+            # the block: the part of its own interval this block carries (all of it, unless an indel
+            # has cut the block), counted from the block's physically-leading end — which on a
+            # reversed block is the source's high end.
+            rows = []
+            for fam in members.get(b.gene, (b.gene,)):
+                _src, lo, hi = self.gene_spans.get(fam, (b.source, b.start, b.end))
+                lo, hi = max(lo, b.start), min(hi, b.end)
+                if lo < hi:
+                    rows.append((at + (lo - b.start if b.strand == 1 else b.end - hi), lo, hi, fam))
+            for begin, lo, hi, fam in sorted(rows):
+                n += 1
+                strand = "+" if self.gene_strands.get(fam, 1) * b.strand == 1 else "-"
+                # ID is a plain per-file counter, because GFF wants one unique handle and nothing else
+                # here is: `copy` is the *block's* copy lineage, and a whole replicon is laid down as
+                # one, so every gene on it shares it until something duplicates them apart. What joins
+                # this row to the rest of the run is `family` — its gene tree, and its alignment.
+                named = f"Name={name_of[fam]};" if fam in name_of else ""
+                attrs = (f"ID=gene{n};{named}family={fam};copy={b.copy};"
+                         f"source={b.source}:{lo}-{hi}")
+                out.append(f"{label}_chr{chrom.id}\tZOMBI2\tgene\t{begin + 1}\t{begin + hi - lo}"
+                           f"\t.\t{strand}\t.\t{attrs}")
         return "\n".join(out) + "\n"
 
     def _bed(self, label: str, genome: NucleotideGenome) -> str:
@@ -1890,29 +1936,78 @@ def _even_gene_intervals(length, genes, gene_length) -> list[tuple[int, int, int
     return out
 
 
+def _overlap_groups(intervals) -> list[list]:
+    """``intervals`` (each starting ``(start, end, …)``, sorted by start) gathered into runs that
+    **overlap**: an interval joins the run before it when it starts before that run ends. Intervals
+    that only touch stay apart. Every position inside a run lies inside at least one of its
+    intervals, which is the whole reason a run is one indivisible block: there is nowhere in it a
+    breakpoint could fall without cutting a gene."""
+    groups: list[list] = []
+    end = None
+    for iv in intervals:
+        if end is not None and iv[0] < end:
+            groups[-1].append(iv)
+            end = max(end, iv[1])
+        else:
+            groups.append([iv])
+            end = iv[1]
+    return groups
+
+
+def _gene_blocks(gene_spans) -> tuple[dict[int, int], dict[int, tuple[int, int, int]]]:
+    """``({family: the family its block is tagged with}, {that family: the block's span})``, read
+    off the gene spans alone.
+
+    Genes that overlap share one block, tagged with the first of them — the lowest start, then the
+    lowest family id, which is the order the layout met them in. So the grouping is a function of
+    ``genes.tsv`` and needs no column of its own, and a run read back from disk regroups exactly as
+    the run that wrote it did. A gene that overlaps nothing is its own block, tagged with itself."""
+    tag: dict[int, int] = {}
+    spans: dict[int, tuple[int, int, int]] = {}
+    by_source: dict[int, list] = collections.defaultdict(list)
+    for fam, (src, start, end) in gene_spans.items():
+        by_source[src].append((start, end, fam))
+    for src, ivs in by_source.items():
+        for group in _overlap_groups(sorted(ivs, key=lambda iv: (iv[0], iv[2]))):
+            first = group[0][2]
+            spans[first] = (src, group[0][0], max(iv[1] for iv in group))
+            for (_start, _end, fam) in group:
+                tag[fam] = first
+    return tag, spans
+
+
 def _initial_blocks(source, length, cp, intervals, new_family, gene_spans, gene_names,
-                 gene_strands) -> list[Block]:
+                 gene_strands, block_spans) -> list[Block]:
     """Lay one initial replicon of ``length`` down as its blocks: the declared genes at ``intervals``
-    (0-based half-open, sorted, non-overlapping) and **intergene** everywhere else — the alternating
-    chain. Every block shares the replicon's initial copy lineage ``cp`` (they are one copy of one
-    replicon); each **gene** additionally gets a fresh **family** id, which is what makes it indivisible
-    and gives it a gene tree, and is recorded in ``gene_spans``, ``gene_strands`` (its **coding**
-    strand) and ``gene_names`` (when it is named).
+    (0-based half-open, sorted by start) and **intergene** everywhere else — the alternating chain.
+    Every block shares the replicon's initial copy lineage ``cp`` (they are one copy of one
+    replicon); each **gene** additionally gets a fresh **family** id, which gives it a gene tree, and
+    is recorded in ``gene_spans`` (its own interval), ``gene_strands`` (its **coding** strand) and
+    ``gene_names`` (when it is named).
+
+    Genes that **overlap** are laid down as **one** block spanning all of them (`_overlap_groups`),
+    tagged with the first gene's family and recorded in ``block_spans`` — the span the cut rule
+    reads. A gene that overlaps nothing is a block of its own, as it always was.
     With no intervals the replicon is a single intergenic block — today's uniform sequence."""
     blocks, at = [], 0
-    for (start, end, strand, name) in intervals:
+    for group in _overlap_groups(intervals):
+        start, end = group[0][0], max(iv[1] for iv in group)
         if start > at:
-            blocks.append(Block(source, at, start, 1, cp))       # intergene before this gene
-        fam = new_family()
+            blocks.append(Block(source, at, start, 1, cp))       # intergene before this block
+        first = 0
+        for (g_start, g_end, strand, name) in group:
+            fam = new_family()
+            first = first or fam
+            gene_spans[fam] = (source, g_start, g_end)
+            gene_strands[fam] = strand
+            if name is not None:
+                gene_names[name] = fam
         # NB: every initial block is strand +1. `Block.strand` is orientation *relative to the ancestral
         # source*, and at the start the genome IS its own source — nothing is inverted yet. A gene's
         # coding strand from the GFF is a different thing entirely (which strand carries the ORF), a
         # constant property of the family, so it is recorded separately.
-        blocks.append(Block(source, start, end, 1, cp, fam))
-        gene_spans[fam] = (source, start, end)
-        gene_strands[fam] = strand
-        if name is not None:
-            gene_names[name] = fam
+        blocks.append(Block(source, start, end, 1, cp, first))
+        block_spans[first] = (source, start, end)
         at = end
     if at < length:
         blocks.append(Block(source, at, length, 1, cp))           # trailing intergene
@@ -2072,6 +2167,8 @@ def _do_origination(g, node_id, t, origination_extent, rng, events, new_source, 
     chrom.originate(p, length, src, cp, fam, used=used)
     gene_spans[fam] = (src, 0, length)                   # a de-novo gene, tracked like a declared one
     gene_strands[fam] = 1
+    if chrom.genes is not None:                          # ...and a block of its own for the cut rule
+        chrom.genes[fam] = (src, 0, length)
     events.append(Origination(t, node_id, chrom.id, cp, src, 0, length, cuts=tuple(used)))
     return length
 
@@ -2302,10 +2399,13 @@ def _do_chromosome_origination(g, node_id, t, origination_extent, rng, events, c
     exactly like a de-novo `_do_origination()`. Returns ``(chromosome delta, length delta)``."""
     cid, src, cp, fam = new_chrom_id(), new_source(), new_copy(), new_family()
     length = max(1, int(rng.geometric(1.0 / origination_extent)))
+    block_spans = g.chromosomes[0].genes if g.chromosomes else None
     g.chromosomes.append(Chromosome(cid, "circular", [Block(src, 0, length, 1, cp, fam)],
-                                    g.chromosomes[0].genes if g.chromosomes else None))
+                                    block_spans))
     gene_spans[fam] = (src, 0, length)
     gene_strands[fam] = 1
+    if block_spans is not None:
+        block_spans[fam] = (src, 0, length)
     chromosome_events.append(ChromosomeEvent(t, "origination", node_id, (), (cid,)))
     events.append(Origination(t, node_id, cid, cp, src, 0, length))
     return (1, length)
@@ -2381,6 +2481,8 @@ def _warn_if_extents_cannot_reach_a_gene(specs, layouts, rates, extents) -> None
     declared no genes has nothing to miss. The **base** mean is read rather than the modified one: a
     modifier is read per lineage at the instant an event fires, so there is no one number for it
     here."""
+    # by block: genes that overlap are taken whole or not at all, so the group is the unit to reach
+    layouts = [[(g[0][0], max(iv[1] for iv in g)) for g in _overlap_groups(lay)] for lay in layouts]
     genes = [end - start for lay in layouts for (start, end, *_rest) in lay]
     if not genes:
         return                              # no declared genes: nothing to be unable to reach
@@ -2709,12 +2811,15 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     gene_spans: dict[int, tuple[int, int, int]] = {}
     gene_names: dict[str, int] = {}
     gene_strands: dict[int, int] = {}
+    # {the family a block is tagged with: that block's span} — what the cut rule reads. The same as
+    # `gene_spans` wherever no two genes overlap; where they do, one entry spans the whole group.
+    block_spans: dict[int, tuple[int, int, int]] = {}
     for source, ((length, top), intervals) in enumerate(zip(specs, layouts)):  # one source per replicon
         cid = new_chrom_id()
         cp = new_copy()                                 # ...and one initial copy lineage per replicon
         initial_chroms.append(Chromosome(cid, top, _initial_blocks(source, length, cp, intervals, new_family,
                                                              gene_spans, gene_names,
-                                                             gene_strands), gene_spans))
+                                                             gene_strands, block_spans), block_spans))
         # `initial`, as the copy lineage below is: a replicon the run *starts* with is not something
         # it did, so counting `origination` in either log gives the de-novo ones alone
         chromosome_events.append(ChromosomeEvent(root.birth_time, "initial", root.id, (), (cid,)))
@@ -3196,8 +3301,8 @@ def _recover_gene_trees(result, *, every_block: bool = False
     the last gene each copy lineage held, which is what a genome still carrying that copy is made of
     (``None`` where a loss ended that copy over that block, leaving nothing to read a fragment from).
 
-    With genes declared we build a tree for the root-blocks that are declared genes, keyed by gene
-    family id; with none declared, every root-block is a family (keyed by index). Either way the
+    With genes declared we build a tree for every declared gene whose root-block survives, keyed by
+    gene family id; with none declared, every root-block is a family (keyed by index). Either way the
     per-block builder below is the same — which block it is *pointed at* is the only difference.
 
     ``every_block`` points it at all of them: a block never splits, so its size is fixed and its whole
@@ -3227,8 +3332,26 @@ def _recover_gene_trees(result, *, every_block: bool = False
     if every_block:                                      # every root-block, genic or spacer, by index
         targets = list(enumerate(blocks))
     elif result.gene_spans:                              # genic: one family per surviving declared gene
-        family_of = {span: fam for fam, span in result.gene_spans.items()}
-        targets = [(family_of[iv], iv) for iv in blocks if iv in family_of]
+        # A gene's tree is read on the gene's **own** interval, which is the whole root block for a
+        # gene on a block of its own and a part of it for genes that overlap. Without indels an
+        # event takes a block whole, so genes sharing one get the same tree. With them it need not:
+        # a deletion can take one gene out of a block and leave its neighbour, and the neighbour's
+        # tree must not end there.
+        _tag, spans, members = result._blocks_of_genes()
+        first_of = {span: first for first, span in spans.items()}
+        targets = [(fam, result.gene_spans[fam]) for iv in blocks if iv in first_of
+                   for fam in members[first_of[iv]]]
+        shared = {first: fams for first, fams in members.items() if len(fams) > 1}
+        if carried is not None and shared:
+            # `carried` answers for root blocks, and a gene sharing a block is not one. The same
+            # question, asked of each such gene: does this copy still hold any part of its interval?
+            for genome in result.node_genomes.values():
+                for chrom in genome.chromosomes:
+                    for blk in chrom.blocks:
+                        for fam in shared.get(blk.gene, ()):
+                            src, lo, hi = result.gene_spans[fam]
+                            if lo < blk.end and blk.start < hi:
+                                carried.add((src, lo, hi, blk.copy))
     else:                                                # uniform: every root-block is its own family
         targets = list(enumerate(blocks))
 
