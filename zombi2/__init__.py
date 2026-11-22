@@ -18,4 +18,4 @@ package — SPEC §2–4).
 
 from __future__ import annotations
 
-__version__ = "0.61.0"
+__version__ = "0.62.0"
