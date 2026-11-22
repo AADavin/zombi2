@@ -185,7 +185,7 @@ Use `family_multipliers=` to give each listed family a positive multiplier. The 
 
 ```python
 sequences.simulate_sequences(my_genomes, model=lg(), length=300,
-                             family_multipliers={"rpoB": 0.2, "tufA": 0.4, 7: 3.0})
+                             family_multipliers={0: 0.2, 1: 0.4, "fam2": 3.0})
 ```
 
 A **nucleotide** run refuses a per-family multiplier, because it evolves blocks rather than gene families: a block is one gene, or one stretch of spacer between two genes. In a nucleotide run, vary the rate among lineages instead, or start from a family or ordered run.
@@ -230,9 +230,16 @@ This is why a phylogram's root carries a branch length: it is the stem in substi
 Use `founding=` to give each family a real gene sequence at its origination. Pair this with `family_multipliers=` to evolve each family at its measured rate. You can omit `length=` when the FASTA file lists every family.
 
 ```python
+# the two files a run writes
+first = sequences.simulate_sequences(
+    my_genomes, model=hky85(), length=300,
+    substitution=PerSite(1.0).varying_among('families', LogNormal(0.0, 0.8)))
+first.write("out/first", outputs=("founding", "family_multipliers"))
+
+# a second run, started from them
 sequences.simulate_sequences(my_genomes, model=hky85(),
-                             founding="real_genes.fasta",
-                             family_multipliers="measured_rates.tsv")
+                             founding="out/first/sequences_founding.fasta",
+                             family_multipliers="out/first/family_multipliers.tsv")
 ```
 
 Write sequences in the model's alphabet: `ACGT` for nucleotide models or the 20 amino acids for protein models. The run accepts lower case and refuses other letters. A real gene's composition drifts toward the model's composition as the run evolves. Both arguments work with serial, parallel, and streamed runs, including a profile mixture such as `lg().profile_mixture("C10")`.
