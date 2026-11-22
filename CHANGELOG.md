@@ -9,6 +9,14 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- Nucleotide genome runs now accept a codon model as `model`, including `--model gy94 --omega 0.1` on the command line. The codon model uses each coding gene's reading frame and strand, reading the minus strand as its reverse complement. ZOMBI2 checks DNA, not annotation: a coding gene spans whole codons, ends in a stop codon, and has no earlier stop codon. A gene that is not coding evolves under `intergene_model` at the gene's speed. The codon model holds each coding gene's stop codon, each base shared by overlapping genes, and every codon touching a shared base. `result.coding_genes` reports coding status, and `sequences_summary.json` reports `coding` and `not_coding` counts under `genes`. (#501)
+
+### Fixed
+
+- Fixed an `AttributeError` in nucleotide genome runs on the parallel engine (`parallel=`, `--parallel`) when `intergene_model` was omitted. These runs now use the default spacer model, `jc69`, as the serial engine always did. (#501)
+
 ## [0.62.0] - 2026-11-22
 
 ### Added
