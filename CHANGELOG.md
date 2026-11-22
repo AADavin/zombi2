@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.63.0] - 2026-11-22
+
 ### Added
 
 - Nucleotide genome runs now accept a codon model as `model`, including `--model gy94 --omega 0.1` on the command line. The codon model uses each coding gene's reading frame and strand, reading the minus strand as its reverse complement. ZOMBI2 checks DNA, not annotation: a coding gene spans whole codons, ends in a stop codon, and has no earlier stop codon. A gene that is not coding evolves under `intergene_model` at the gene's speed. The codon model holds each coding gene's stop codon, each base shared by overlapping genes, and every codon touching a shared base. `result.coding_genes` reports coding status, and `sequences_summary.json` reports `coding` and `not_coding` counts under `genes`. (#501)
