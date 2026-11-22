@@ -159,11 +159,14 @@ single loss on the other, however many losses really happened inside that clade;
 entirely when the abandoned daughter has no surviving descendant. A duplication whose second copy died
 disappears too.
 
-Transfers are the interesting case. When a copy arrives from a lineage that leaves no survivor, the
-transfer node vanishes with the donor. If the arriving copy has surviving relatives in the gene tree,
-the transfer is rewritten to leave from those relatives' shared ancestral branch, the point where
-the copy rejoins them, and the strongest claim the extant tree can express. If it has none, the
-family appears to begin where it landed.
+Transfers are the interesting case. When the donor branch has no surviving descendant, the
+projection suppresses the transfer. With surviving relatives, the projection places the transfer on
+their shared ancestral branch, where the copy that left rejoins them. Otherwise, the family appears
+to begin where it landed.
+
+When the donor branch has a surviving descendant and only the donor's copy dies, the projection keeps
+the transfer at its real time. Its children are a `loss` on the donor branch and the copy that left.
+The projection suppresses the transfer if the copy that left lands back on the donor branch.
 
 | | rooted at | what it is for |
 |---|---|---|

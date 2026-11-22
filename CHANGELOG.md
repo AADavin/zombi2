@@ -9,6 +9,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Fixed
+
+- With `--recphylo extant` or `extant_reconciliation`, the projection now keeps the transfer with a loss when the donor's copy dies on a visible branch. Previously, the projection moved the transfer and skipped the loss on the donor branch and at speciations above it. Loss counts increase in `recphylo_fam<f>_true.xml`, `recphylo_fam<f>_recoverable.xml`, and the `losses` column of `family_origins.tsv`. (#491)
+
 ## [0.58.0] - 2026-11-21
 
 ### Changed
