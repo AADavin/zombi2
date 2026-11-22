@@ -179,6 +179,15 @@ Without the second modifier, how long a family's gene tree is and how many speci
 
 The multipliers are recorded in `family_multipliers.tsv`, one row per family, and in Python they are in `.family_multipliers`. Appendix B describes that file, which is the same table a genome run writes for its own rates. A method that fits a substitution rate per family can then be scored against each family's recorded multiplier.
 
+### Giving each family its rate
+
+Use `family_multipliers=` to give each listed family a positive multiplier. The run multiplies its substitution rate by that multiplier throughout the family's life. You can identify a family by its declared name, number, or `fam<N>`. An unlisted family keeps its drawn multiplier when the rate draws one, or uses 1 otherwise. The run refuses entries for a family it does not have.
+
+```python
+sequences.simulate_sequences(my_genomes, model=lg(), length=300,
+                             family_multipliers={0: 0.2, 1: 0.4, "fam2": 3.0})
+```
+
 A **nucleotide** run refuses a per-family multiplier, because it evolves blocks rather than gene families: a block is one gene, or one stretch of spacer between two genes. In a nucleotide run, vary the rate among lineages instead, or start from a family or ordered run.
 
 ### Setting the rate, or letting the divergence set it
@@ -215,6 +224,25 @@ Everything above changes how *fast* a lineage evolves. `Models` changes what the
 A family does not begin at the first branching of its gene tree. It begins when it originates, and the founding gene then lives for a while, its **stem**, before anything splits it. So that is where the sequence starts: one draw from the model's stationary frequencies at the origination, which then evolves across the stem in the ordinary way and arrives at the root gene as a sequence that has already changed. `.founding` is that first draw; `.ancestral` holds what the root gene ended up with, and the two differ by however much the stem allowed.
 
 This is why a phylogram's root carries a branch length: it is the stem in substitutions per site, exactly as every other branch is its own stretch of time converted by the rate. Under a strict clock of rate 1 a phylogram is its chronogram, root branch included.
+
+### Starting a family from a given sequence
+
+Use `founding=` to give each family a real gene sequence at its origination. Pair this with `family_multipliers=` to evolve each family at its measured rate. You can omit `length=` when the FASTA file lists every family.
+
+```python
+# the two files a run writes
+first = sequences.simulate_sequences(
+    my_genomes, model=hky85(), length=300,
+    substitution=PerSite(1.0).varying_among('families', LogNormal(0.0, 0.8)))
+first.write("out/first", outputs=("founding", "family_multipliers"))
+
+# a second run, started from them
+sequences.simulate_sequences(my_genomes, model=hky85(),
+                             founding="out/first/sequences_founding.fasta",
+                             family_multipliers="out/first/family_multipliers.tsv")
+```
+
+Write sequences in the model's alphabet: `ACGT` for nucleotide models or the 20 amino acids for protein models. The run accepts lower case and refuses other letters. A real gene's composition drifts toward the model's composition as the run evolves. Both arguments work with serial, parallel, and streamed runs, including a profile mixture such as `lg().profile_mixture("C10")`.
 
 ## Large runs
 

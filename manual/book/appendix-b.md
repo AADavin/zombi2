@@ -520,6 +520,9 @@ that multiplier, for its whole life. The multipliers have an expected value of 1
 own mean is divided out. A run whose substitution rate does not vary among families writes the header
 alone. A **nucleotide** run refuses the draw, because it evolves blocks rather than gene families.
 
+Pass `sequences_founding.fasta` to a later run as `founding=`. Pass `family_multipliers.tsv` to that
+run as `family_multipliers=`.
+
 **`phylogram_fam<f>_*.nwk`**: with rate variation across sites the branch length is the **mean** over sites, which is
 what the rate classes are normalised to. Under a per-clade model set (`Models`) the lengths still mean
 substitutions per site, since every model is normalised to one per unit length, but that normalisation

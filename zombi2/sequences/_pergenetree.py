@@ -49,19 +49,22 @@ def _evolve_one(task):
     inline); reads the shared partitions/models/clock from module state, keeps a per-worker CDF cache
     per model."""
     from . import (_evolve_partitions, _gene_newick, _mixture_layout, _scaled_gene_tree,
-                   _unshuffle)   # lazy: package, no cycle
+                   _sized_by, _unshuffle)   # lazy: package, no cycle
 
     family, flat, midx, length, rate, seed_states, seedseq = task
     # A family or ordered run's partitions are run-wide and came through the initializer; a
     # nucleotide block names its model by index and brings its own length in the task.
-    parts = _PARTS if _PARTS is not None else ((_MODELS[midx], length),)
+    # A family given its founding sequence takes its length from it (`_sized_by`).
+    parts = _sized_by(_PARTS, seed_states) if _PARTS is not None else ((_MODELS[midx], length),)
     rng = np.random.default_rng(seedseq)
     gt = rebuild_gene_tree(flat)
     # A profile mixture is the one per-family layout: each site draws its profile from this
     # family's own stream, first thing, so the draw is as worker-count invariant as the rest.
     layout = None
     if _PARTS is not None and len(_PARTS) == 1 and getattr(_PARTS[0][0], "profile_models", ()):
-        parts, layout = _mixture_layout(_PARTS[0][0], _PARTS[0][1], rng)
+        parts, layout = _mixture_layout(_PARTS[0][0], parts[0][1], rng)
+        if seed_states is not None:         # a given sequence follows its sites into the layout
+            seed_states = seed_states[np.asarray(layout.order, dtype=np.intp)]
     aln, anc, fnd = _evolve_partitions(gt, parts, rate, _CLOCK, rng, _CACHES, _NAMES,
                                        founding=seed_states)
     if layout is not None:
@@ -103,7 +106,9 @@ def evolve_families(gene_trees, per_block, model, intergene_model, length, rate_
         flat = flatten_gene_tree(gene_trees[family])
         if per_block is None:
             # the partitions say which models and how many sites; there is no index to give
-            midx, f_len, f_rate, seed_states = None, None, rate_base, None
+            midx, f_len, f_rate = None, None, rate_base
+            # a family or ordered run's `founding_seed` holds the sequences that were given, if any
+            seed_states = (founding_seed or {}).get(family)
             if multipliers:              # a draw among families: this family's own speed
                 f_rate = rate_base * multipliers[family]
         else:                            # a nucleotide block: its own length, model and speed
