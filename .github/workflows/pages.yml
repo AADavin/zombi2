@@ -41,9 +41,14 @@ jobs:
             texlive-xetex texlive-latex-recommended texlive-latex-extra \
             texlive-fonts-recommended texlive-fonts-extra texlive-plain-generic
       - name: Install a recent Pandoc (Ubuntu's apt pandoc is too old for --syntax-highlighting)
+        # `gh` asks with the workflow's own token. The bare curl to api.github.com that stood here
+        # was anonymous, and anonymous calls are rationed per runner address: on 2026-11-22 two
+        # runs were answered 403, the version came back empty, and the download that followed was
+        # a 404 on a URL with no version in it.
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          ver=$(curl -fsSL https://api.github.com/repos/jgm/pandoc/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
-          curl -fsSL "https://github.com/jgm/pandoc/releases/download/${ver}/pandoc-${ver}-1-amd64.deb" -o /tmp/pandoc.deb
+          gh release download --repo jgm/pandoc --pattern 'pandoc-*-1-amd64.deb' --output /tmp/pandoc.deb
           sudo dpkg -i /tmp/pandoc.deb
           pandoc --version | head -1
       - name: Build the manual
