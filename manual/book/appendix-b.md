@@ -518,7 +518,9 @@ internal nodes with the ancestral sequences.
 From Python: `.alignments` · `.ancestral` (the sequences), `.genomes` · `.node_genomes` ·
 `.initial_genome` (the assembled genomes, present only when the run came from a **nucleotide**
 genome), `.founding` · `.phylograms` · `.species_phylogram` · `.family_multipliers` ·
-`.profile_assignments`, and the driver views `.gc()` · `.composition(letters)`.
+`.profile_assignments` · `.coding_genes`, and the driver views `.gc()` · `.composition(letters)`.
+Under a codon model, `sequences_summary.json` reports `genes` counts (`coding`, `not_coding`), and
+`.coding_genes` maps families to `True` or `False`.
 
 **`family_multipliers.tsv`** is the same table the genome run writes, with the one rate this level
 draws among families. A substitution rate written with `varying_among("families", …)` draws one

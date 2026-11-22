@@ -211,6 +211,9 @@ class SequencesResult:
     #: The per-block rows underneath the spliced view — what a genome is assembled from, and what a
     #: test checks the splice against. Same objects `alignments` / `ancestral` read through.
     _raw_rows: dict = field(default_factory=dict, repr=False)
+    #: ``coding_genes`` maps each gene family to ``True`` for coding or ``False`` for not coding.
+    #: It is empty under a nucleotide or protein model.
+    coding_genes: dict[int, bool] = field(default_factory=dict)
     _raw_ancestral: dict = field(default_factory=dict, repr=False)
 
     def __repr__(self) -> str:
@@ -329,6 +332,12 @@ class SequencesResult:
             "sites": {"min": sites[0], "max": sites[-1]} if sites else {"min": None, "max": None},
             "mean_pairwise_identity": mean_pairwise_identity(aligned),
             "assembled_genomes": len(self.node_genomes),
+            # under a codon model on a nucleotide genome: how many genes were read as coding, and
+            # how many were not and evolved as plain DNA. Absent otherwise, so every other run
+            # writes the summary it always wrote.
+            **({"genes": {"coding": sum(self.coding_genes.values()),
+                          "not_coding": len(self.coding_genes) - sum(self.coding_genes.values())}}
+               if self.coding_genes else {}),
             **recorded,
         }
 
@@ -1190,6 +1199,110 @@ def _resolve_partitions(model, partitions,
     return tuple(parts)
 
 
+#: the stop codon a gene drawn without real DNA ends in: a stop in every genetic code built in
+_DRAWN_STOP = "TAA"
+
+
+def _is_coding(seq: "str | None", length: int, one: SubstitutionModel) -> bool:
+    """Whether a gene is **coding**, to a codon model.
+
+    With its DNA in hand (``seq``, read on the gene's own strand): a whole number of codons, at
+    least two, that ends in a stop codon and has none before it. That is read off the sequence
+    rather than off the annotation, because a ``gene`` row of a GFF is also what a tRNA or an rRNA
+    gene is, and a pseudogene is a gene whose frame is already broken. Whatever fails the test
+    evolves as plain DNA.
+
+    Without DNA — a genome that was drawn rather than supplied, or a gene that originated during
+    the run — there is no sequence to read, so a gene of a whole number of codons is coding and is
+    drawn as one."""
+    if length % 3 or length < 6:
+        return False
+    if seq is None:
+        return True
+    stops = {c for c in (a + b + d for a in BASES for b in BASES for d in BASES)
+             if c not in one.codons}
+    codons = [seq[i:i + 3] for i in range(0, length, 3)]
+    return codons[-1] in stops and not any(c in stops for c in codons[:-1])
+
+
+def _codon_layout(span, genes, root, codon, base):
+    """One gene block of a nucleotide genome as the partitions a codon model evolves:
+    ``(parts, how, founding, coding)``, in the shapes `_evolve_partitions` takes, with ``coding``
+    saying which of its genes were read as coding.
+
+    ``span`` is the block, ``genes`` its ``(family, start, end, strand)`` — one gene, or several
+    that overlap — and ``root`` the DNA of its source, or ``None`` when the genome was drawn.
+    Every base of the block is one of three things:
+
+    - part of a **codon** of a coding gene, evolved under ``codon`` in that gene's frame and on its
+      strand;
+    - **held**: a gene's stop codon, which is not a state the model has; and any base two genes
+      share, with every codon that touches one, because no single frame owns it;
+    - plain DNA of a gene that is **not coding**, evolved under ``base``.
+
+    Consecutive bases of one kind are one partition, so a gene alone on its block is its codons
+    and then its stop."""
+    src, bs, be = span
+    one = _one_model(codon)
+    length = be - bs
+    cover = np.zeros(length, dtype=np.int16)
+    for (_fam, a, b, _strand) in genes:
+        cover[a - bs:b - bs] += 1
+    # what each base is: 0 held, -1 plain DNA, a family id for a codon of that gene, and
+    # -2 - family for that gene's stop codon when it was drawn (and so has to be spelled)
+    label = np.zeros(length, dtype=np.int64)
+    strand_of: dict[int, int] = {}
+    coding: dict[int, bool] = {}
+    for (fam, a, b, strand) in genes:
+        strand_of[fam] = strand
+        seq = None
+        if root is not None:
+            seq = root[a:b] if strand == 1 else root[a:b].translate(_COMPLEMENT)[::-1]
+        alone = bool((cover[a - bs:b - bs] == 1).all())
+        # without its DNA a gene that shares bases cannot be given a frame: the shared bases would
+        # be drawn at random, and a random stretch holds stop codons
+        coding[fam] = _is_coding(seq, b - a, one) and (root is not None or alone)
+        if not coding[fam]:
+            mine = np.arange(a - bs, b - bs)[cover[a - bs:b - bs] == 1]
+            label[mine] = -1
+            continue
+        n = (b - a) // 3
+        for k in range(n):
+            lo = a - bs + 3 * k if strand == 1 else b - bs - 3 * (k + 1)
+            if not (cover[lo:lo + 3] == 1).all():
+                continue                                 # touches a shared base: held
+            if k < n - 1:
+                label[lo:lo + 3] = fam
+            elif root is None:
+                label[lo:lo + 3] = -2 - fam              # the stop codon of a drawn gene
+    parts, how, founding = [], [], []
+    i = 0
+    while i < length:
+        j = i
+        while j < length and label[j] == label[i]:
+            j += 1
+        kind = int(label[i])
+        piece = None if root is None else root[bs + i:bs + j]
+        if kind > 0:                                     # codons of one gene
+            strand = strand_of[kind]
+            parts.append((codon, (j - i) // 3))
+            how.append(strand)
+            founding.append(None if piece is None else states_of(
+                one, piece if strand == 1 else piece.translate(_COMPLEMENT)[::-1]))
+        elif kind <= -2:                                 # a drawn gene's stop codon
+            strand = strand_of[-2 - kind]
+            parts.append((base, j - i))
+            how.append(0)
+            founding.append(encode(_DRAWN_STOP if strand == 1
+                                   else _DRAWN_STOP.translate(_COMPLEMENT)[::-1], base.alphabet))
+        else:                                            # held (0), or plain DNA (-1)
+            parts.append((base, j - i))
+            how.append(1 if kind == -1 else 0)
+            founding.append(None if piece is None else encode(piece, base.alphabet))
+        i = j
+    return tuple(parts), tuple(how), founding, coding
+
+
 def _one_model(m) -> SubstitutionModel:
     """A model to read the states and letters off: ``m`` itself, or any member of a per-lineage
     set — `Models.set_by` has checked that they all agree on both."""
@@ -1392,7 +1505,7 @@ def _bp_extent(spec, label):
 
 
 def _evolve_partitions(gt, parts, rate, clock, rng, cdf_caches, names, founding=None,
-                       present: "dict | None" = None, record=None):
+                       present: "dict | None" = None, record=None, how: "tuple | None" = None):
     """Evolve one gene tree partition by partition and hand back the family's whole sequences:
     ``(alignment, ancestral, founding_string)``, each sequence the partitions concatenated in order.
 
@@ -1411,7 +1524,16 @@ def _evolve_partitions(gt, parts, rate, clock, rng, cdf_caches, names, founding=
     concatenation work at all.
 
     ``founding`` (a nucleotide run's supplied DNA) is sliced per partition at the same offsets, so
-    each block founds from its own stretch.
+    each block founds from its own stretch. It may also be a list with one entry per partition, each
+    in that partition's own states or ``None`` to draw — which is what partitions over different
+    state spaces need, since a codon and a base are not counted in the same units.
+
+    ``how`` says how each partition is read, one entry apiece: ``1`` as written (the default for
+    all), ``-1`` on the **other strand**, or ``0`` **held**. A partition read on the other strand
+    is evolved as its reverse complement and written back reversed, which is how a gene on the
+    minus strand evolves in its own reading frame inside a block written on the plus strand. A held
+    partition does not evolve: every node carries its founding sequence, and no draw is spent on
+    the tree.
     """
     pieces = []
     at = 0
@@ -1422,7 +1544,10 @@ def _evolve_partitions(gt, parts, rate, clock, rng, cdf_caches, names, founding=
     if record is not None and len(parts) > 1:
         total = sum(int(n) for _m, n in parts)
         whole_ids = record.site_ids if record.site_ids is not None else tuple(range(total))
-    for model, n in parts:
+    per_part = isinstance(founding, (list, tuple))
+    for p, (model, n) in enumerate(parts):
+        mode = 1 if how is None else how[p]
+        given = None if founding is None else founding[p] if per_part else founding[at:at + n]
         if whole_ids is not None:
             record.site_ids = tuple(whole_ids[at:at + n])
         # One CDF cache for the whole run: it is keyed by (model, branch length), so several models
@@ -1435,13 +1560,27 @@ def _evolve_partitions(gt, parts, rate, clock, rng, cdf_caches, names, founding=
             per_species, base = model.per_species, model.at(gt.complete.species)
         else:
             per_species, base = None, model
-        states, founding_states = evolve_gene_tree(
-            gt.complete, base, n, rate, clock, rng, gt.origination,
-            founding=None if founding is None else founding[at:at + n],
-            cdf_cache=cdf_caches, models=per_species, record=record)
+        if mode == 0:
+            # held: the founding sequence at every node, drawn once when it was not given
+            founding_states = (rng.choice(base.k, size=n, p=base.stationary).astype(np.int8)
+                               if given is None else np.asarray(given, dtype=np.int8))
+            states, stack = {}, [gt.complete]
+            while stack:
+                node = stack.pop()
+                states[id(node)] = founding_states
+                stack.extend(node.children)
+        else:
+            states, founding_states = evolve_gene_tree(
+                gt.complete, base, n, rate, clock, rng, gt.origination,
+                founding=given, cdf_cache=cdf_caches, models=per_species, record=record)
         at += n
         aln, anc = _split(gt, states, names, base, present=present)
-        pieces.append((aln, anc, letters_of(base, founding_states)))
+        fnd = letters_of(base, founding_states)
+        if mode == -1:                      # evolved as its reverse complement: write it back
+            aln = {key: seq.translate(_COMPLEMENT)[::-1] for key, seq in aln.items()}
+            anc = {key: seq.translate(_COMPLEMENT)[::-1] for key, seq in anc.items()}
+            fnd = fnd.translate(_COMPLEMENT)[::-1]
+        pieces.append((aln, anc, fnd))
     if whole_ids is not None:
         record.site_ids = None if whole_ids == tuple(range(at)) else whole_ids
     if len(pieces) == 1:
@@ -2064,6 +2203,16 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     ``.node_genomes`` holds every node's chromosomes, blocks concatenated in physical order — the complete
     tree, reconstructed — and ``.initial_genome`` the one the run started with.
 
+    On a nucleotide genome run, a codon model uses each coding gene's reading frame and strand,
+    reading the minus strand as its reverse complement. ZOMBI2 checks DNA, not annotation: a coding
+    gene spans whole codons, ends in a stop codon, and has no earlier stop codon. A gene that is not
+    coding evolves under ``intergene_model`` at the gene's speed. A coding gene's stop codon never
+    changes because a stop codon is not a state of the codon model. Bases shared by overlapping
+    genes stay fixed, together with every codon touching those bases, because no single reading
+    frame owns them. A codon model is refused on a genome run that has indels, because an indel
+    inside a gene shifts its reading frame in that lineage. ZOMBI2 refuses a codon model as
+    ``intergene_model`` because spacer has no reading frame.
+
     The result carries the **phylograms** the sequences were drawn along — each gene tree and the
     species tree, with branch lengths converted from time to substitutions/site by the same
     ``base × clock × Δt``.
@@ -2145,12 +2294,17 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     codon = any(getattr(m, "codons", ()) for m in
                 (model, intergene_model, *(p[0] for p in (partitions or ())
                                            if isinstance(p, (tuple, list)) and p)))
-    if codon and nucleotide:
+    if nucleotide and intergene_model is not None and intergene_model.codons:
         raise ValueError(
-            "a codon model is not read on a nucleotide genome run yet: there a gene sits on a "
-            "strand and in a reading frame, and may share bases with the gene beside it, and "
-            "none of that is carried to the model. Run it on a family or ordered genome run, "
-            "where a gene family is one sequence in one frame.")
+            f"intergene_model={intergene_model.name} is a codon model, and the spacer between "
+            f"genes has no reading frame for it to follow. Give the codon model as model=, where "
+            f"it evolves the genes that are coding, and a nucleotide model for the spacer.")
+    if nucleotide and codon and (genomes.deletions or genomes.indels):
+        raise ValueError(
+            "a codon model is not read on a nucleotide genome run that has indels yet: an "
+            "insertion or a deletion inside a gene shifts its reading frame in that lineage, and "
+            "the model would go on reading the old one. Run the genomes without insertion= and "
+            "deletion=, or evolve the sequences under a nucleotide model.")
     if codon and (insertion or deletion):
         raise ValueError(
             "indels are not read with a codon model yet: they would have to come in whole "
@@ -2279,6 +2433,9 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
             "evolves blocks — genes and the spacer between them — rather than a family's gene "
             "trees. Run the family or ordered resolution at the genome level if one family's "
             "sequences are what you want.")
+    # {gene family: whether a codon model read it as coding}, filled on a nucleotide genome run under
+    # a codon model and empty on every other run
+    coding: dict[int, bool] = {}
     if nucleotide:
         # Every recovered root block evolves — spacer as well as genes — so the run reconstructs the
         # whole genome rather than the declared loci. Each block brings its own length in bp, which
@@ -2345,6 +2502,26 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                     f"the run was founded from a FASTA (DNA), but {f_model.name} is a protein model — "
                     "a nucleotide sequence cannot found an amino-acid alignment")
             founding_seed[i] = encode(root[a:b], f_model.alphabet)
+        # Under a codon model a gene block is not one stretch under one model: it is codons in
+        # each coding gene's own frame and strand, with the bases no frame owns held, and plain DNA
+        # where a gene is not coding. `block_layout` is that, per gene block; a block of spacer, and
+        # every block of a run under a nucleotide model, keeps the single stretch it always was.
+        block_layout: dict = {}
+        if model.codons:
+            _tag, gene_block_spans, members = genomes._blocks_of_genes()
+            index = {span: i for i, span in enumerate(blocks)}
+            for first, fams in members.items():
+                held_at = index.get(gene_block_spans[first])
+                if held_at is None:              # a block no node carries any more: nothing to evolve
+                    continue
+                layout_parts, layout_how, layout_founding, block_coding = _codon_layout(
+                    blocks[held_at],
+                    [(fam, *genomes.gene_spans[fam][1:], genomes.gene_strands.get(fam, 1))
+                     for fam in fams],
+                    genomes.initial_sequence.get(blocks[held_at][0]), model, spacer)
+                block_layout[held_at] = (layout_parts, layout_how)
+                founding_seed[held_at] = layout_founding
+                coding.update(block_coding)
         parts = None                # a nucleotide block's model and length come from `per_block`
     else:
         gene_trees = genomes.gene_trees
@@ -2367,6 +2544,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                 "spacer. A family or ordered run has gene families only, so there is nothing "
                 "for a second model to evolve.")
         per_block = None
+        block_layout = {}
     given_founding: "dict[int, np.ndarray]" = {}
     given_speed: "dict[int, float]" = {}
     if founding is not None:
@@ -2553,6 +2731,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         for family in sorted(gene_trees):  # sorted for reproducibility given the seed
             bar.update()
             gt = gene_trees[family]
+            f_how = None
             if per_block is None:
                 f_parts, f_rate = parts, rate_base
                 if drawn:               # a draw among families: this family's own speed
@@ -2563,6 +2742,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                 f_len, f_model, speed = per_block[family]
                 f_parts, f_rate = ((f_model, f_len),), rate_base * speed
                 seed_states = founding_seed[family]
+                if family in block_layout:      # a gene block under a codon model: its own layout
+                    f_parts, f_how = block_layout[family]
             if family in site_profiles:          # a profile replaces the family's model, site by site
                 f_parts = site_profiles[family]
                 # `length` is rejected on a nucleotide run — every block carries its own — so the
@@ -2609,7 +2790,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
             aln, anc, fnd = _evolve_partitions(gt, f_parts, f_rate, clock, rng, cdf_caches, names,
                                                founding=seed_states,
                                                present=None if history is None else history.present,
-                                               record=recorder)
+                                               record=recorder, how=f_how)
             if layout is not None:
                 aln, anc, fnd = _unshuffle(aln, anc, fnd, layout.inverse)
                 assignments[family] = layout.profiles
@@ -2639,10 +2820,15 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         clock = resolve_clock(clocks, driven, species_tree, gene_trees, shared)
         drawn = _with_given(_draw_family_multipliers(fam_mods, gene_trees, shared), given_speed,
                             gene_trees)
+        # `spacer`, not `intergene_model`: the argument is optional and the resolved model is not.
+        # Passing the argument sent None to the workers whenever it was left out, and a nucleotide
+        # run on this engine then failed on its first block of spacer.
         alignments, ancestral, founded, phylograms, assignments = evolve_families(
-            gene_trees, per_block, model, intergene_model, length, rate_base, clock,
+            gene_trees, per_block, model, spacer if nucleotide else intergene_model, length,
+            rate_base, clock,
             founding_seed if nucleotide else given_founding, spawned[1:], workers, progress, names,
-            sink=None if sink is None else sink.family, partitions=parts, multipliers=drawn)
+            sink=None if sink is None else sink.family, partitions=parts, multipliers=drawn,
+            layouts=block_layout)
 
     events.sort(key=lambda e: e.time)      # one log, in time order, as every other level writes one
     # One column, `substitution`: it is the level's only rate, and the only one a family can draw a
@@ -2722,7 +2908,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                            _raw_rows=(alignments._raw if isinstance(alignments, _SplicedAlignments)
                                       else alignments),
                            _raw_ancestral=(ancestral._raw if isinstance(ancestral, _SplicedAlignments)
-                                           else ancestral))
+                                           else ancestral),
+                           coding_genes=coding)
 
 
 __all__ = ["simulate_sequences", "SequencesResult", "StreamedSequences",

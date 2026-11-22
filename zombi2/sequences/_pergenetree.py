@@ -51,7 +51,7 @@ def _evolve_one(task):
     from . import (_evolve_partitions, _gene_newick, _mixture_layout, _scaled_gene_tree,
                    _sized_by, _unshuffle)   # lazy: package, no cycle
 
-    family, flat, midx, length, rate, seed_states, seedseq = task
+    family, flat, midx, length, rate, seed_states, seedseq, block_parts = task
     # A family or ordered run's partitions are run-wide and came through the initializer; a
     # nucleotide block names its model by index and brings its own length in the task.
     # A family given its founding sequence takes its length from it (`_sized_by`).
@@ -65,8 +65,14 @@ def _evolve_one(task):
         parts, layout = _mixture_layout(_PARTS[0][0], parts[0][1], rng)
         if seed_states is not None:         # a given sequence follows its sites into the layout
             seed_states = seed_states[np.asarray(layout.order, dtype=np.intp)]
+    how = None
+    if block_parts is not None:
+        # a gene block under a codon model: its partitions name their model by index, as a plain
+        # block does, and say how each is read (`_codon_layout`)
+        parts = tuple((_MODELS[m], n) for m, n, _h in block_parts)
+        how = tuple(h for _m, _n, h in block_parts)
     aln, anc, fnd = _evolve_partitions(gt, parts, rate, _CLOCK, rng, _CACHES, _NAMES,
-                                       founding=seed_states)
+                                       founding=seed_states, how=how)
     if layout is not None:
         aln, anc, fnd = _unshuffle(aln, anc, fnd, layout.inverse)
     scaled = _scaled_gene_tree(gt, rate, _CLOCK)             # branch lengths in subs/site
@@ -78,7 +84,7 @@ def _evolve_one(task):
 
 def evolve_families(gene_trees, per_block, model, intergene_model, length, rate_base, clock,
                     founding_seed, family_seeds, workers, progress, names, sink=None,
-                    partitions=None, multipliers=None):
+                    partitions=None, multipliers=None, layouts=None):
     """Evolve every family concurrently and assemble the output maps: the four of every run, and
     the profile each site drew when the model is a profile mixture (empty otherwise).
 
@@ -115,7 +121,13 @@ def evolve_families(gene_trees, per_block, model, intergene_model, length, rate_
             f_len, f_model, speed = per_block[family]
             midx = 0 if f_model is model else 1
             f_rate, seed_states = rate_base * speed, founding_seed[family]
-        tasks.append((family, flat, midx, f_len, f_rate, seed_states, family_seeds[i]))
+        block_parts = None
+        if layouts and family in layouts:
+            l_parts, l_how = layouts[family]
+            block_parts = tuple((0 if m is model else 1, n, h)
+                                for (m, n), h in zip(l_parts, l_how))
+        tasks.append((family, flat, midx, f_len, f_rate, seed_states, family_seeds[i],
+                      block_parts))
 
     alignments: dict[int, dict[str, str]] = {}
     ancestral: dict[int, dict[str, str]] = {}
