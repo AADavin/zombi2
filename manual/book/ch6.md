@@ -45,7 +45,7 @@ my_genomes = genomes.simulate_genomes_family(tree, initial_families=20, seed=1)
 sequences.simulate_sequences(my_genomes, model=gy94(omega=0.1), length=300)
 ```
 
-Choose `omega` for selection, `kappa` for transition bias (default 2.0), and `code` for the NCBI genetic code (default 11). Required `omega` has no default: 1 means no selection on the protein, while 0.1 lets one amino acid change in ten through. `length` counts bases and must be a multiple of 3. A branch length measures substitutions per base. This release refuses nucleotide genome runs, joint runs, `record=True`, sequence-level indels, `profiles=`, profile mixtures, and mixed codon and nucleotide models within families.
+Choose `omega` for selection, `kappa` for transition bias (default 2.0), and `code` for the NCBI genetic code (default 11). Required `omega` has no default: 1 means no selection on the protein, while 0.1 lets one amino acid change in ten through. `length` counts bases and must be a multiple of 3. A branch length measures substitutions per base. This release refuses joint runs, `record=True`, sequence-level indels, `profiles=`, profile mixtures, and mixed codon and nucleotide models within families.
 
 ### Your own matrix
 
@@ -273,6 +273,23 @@ Memory then stops growing with the sequences: raise the sites fivefold and an in
 Give the level a **nucleotide** genome run, one ZOMBI2 drew or a real annotation you supply, and you get whole assembled genomes in FASTA, at every tip and at every ancestor. Genes and spacer get their own models: `model` evolves the genes, and `intergene_model` evolves the spacer at `intergene_speed` times the rate (3× by default), under `jc69` unless you give it a model of its own, decorated or plain, like any other.
 
 It is the same two steps as any other run: a genomes run at `--resolution nucleotide`, then a sequences run over it. What comes back is every node's assembled genome: `.genomes` at the tips, `.node_genomes` at the ancestors, reconstructed rather than estimated, and `.initial_genome` for the state the run started from.
+
+### A codon model on a genome
+
+A nucleotide genome run accepts a codon model as `model`. The codon model evolves each coding gene in its own reading frame and on its own strand. ZOMBI2 reads a gene on the minus strand as its reverse complement. ZOMBI2 checks DNA because a GFF `gene` row can also represent a tRNA gene, an rRNA gene, or a pseudogene. A coding gene spans whole codons, ends in a stop codon, and has no earlier stop codon.
+
+```python
+nucleotide_genomes = genomes.simulate_genomes_nucleotide(
+    tree, root_length=6000, genes=6, gene_length=600,
+    inversion=1.0, inversion_extent=800, seed=1)
+r = sequences.simulate_sequences(nucleotide_genomes, model=gy94(omega=0.1),
+                                 intergene_model=hky85())
+r.summary()["genes"]
+```
+
+A gene that is not coding evolves under `intergene_model` at the gene's speed. The codon model holds each coding gene's stop codon, each base shared by overlapping genes, and every codon touching a shared base. The run reports coding status in `result.coding_genes` and `coding` and `not_coding` counts in `sequences_summary.json` under `genes`. ZOMBI2 refuses a codon model on a genome that has indels, because they shift reading frames, and a codon model as `intergene_model` because spacer has no reading frame. A very short gene that is not coding can pass this test by chance.
+
+When the genome was drawn and not given as real DNA, a gene whose length is a whole number of codons is coding. It is drawn as codons and ends in the stop codon TAA.
 
 ### Starting from a real sequence
 

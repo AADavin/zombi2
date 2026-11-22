@@ -211,12 +211,11 @@ def test_what_a_codon_run_refuses(kw, match):
         simulate_sequences(_genomes(), model=gy94(omega=0.1), seed=1, **kw)
 
 
-def test_a_nucleotide_genome_run_does_not_read_a_codon_model_yet():
+def test_the_spacer_of_a_nucleotide_genome_has_no_frame_for_a_codon_model():
+    # the genes of a nucleotide genome do take one — tests/test_sequences_codon_genomes.py
     sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=4, seed=1)
     g = simulate_genomes_nucleotide(sp, root_length=600, genes=2, gene_length=99, seed=1)
-    with pytest.raises(ValueError, match="not read on a nucleotide genome run"):
-        simulate_sequences(g, model=gy94(omega=0.1), seed=1)
-    with pytest.raises(ValueError, match="not read on a nucleotide genome run"):
+    with pytest.raises(ValueError, match="no reading frame"):
         simulate_sequences(g, model=hky85(), intergene_model=gy94(omega=1.0), seed=1)
 
 

@@ -349,10 +349,6 @@ def run(args, parser):
                              "genome run, which evolves blocks of a genome rather than families. "
                              "Its starting DNA is the genome level's: zombi2 genomes --resolution "
                              "nucleotide --gff … --fasta …")
-        if args.model in _CODON_MODELS:
-            parser.error(f"--model {args.model} is a codon model, and this handoff is a nucleotide "
-                         "genome run, where a gene sits on a strand and in a reading frame the "
-                         "model is not given yet. Run it on --resolution family or ordered")
         extra = dict(intergene_speed=args.intergene_speed)
         if args.intergene_model is not None:
             extra["intergene_model"] = _NUCLEOTIDE_CTORS[args.intergene_model]()
