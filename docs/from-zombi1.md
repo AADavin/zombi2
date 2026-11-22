@@ -118,7 +118,7 @@ species.simulate_species_tree(birth=PerLineage(1.0).varying_among('lineages', Dr
 | `ST_RATE_MULTIPLIERS` · `GF_RATE_MULTIPLIERS` | the lineage clock: `--substitution "PerSite(1.0).varying_among('lineages', LogNormal(0.0, 0.3))"` (uncorrelated) or `varying_among('lineages', Drift(LogNormal(0.0, 0.3)))` (autocorrelated) |
 | `SHIFT_SUBSTITUTION_RATE` · `SHIFT_CATEGORIES` · `BASE_RATE` | the same clock. No category count |
 | `SCALING` · `SCALE_GENE_TREES` | `--divergence D` sets the rate from the height of the tree, which is what scaling was for |
-| `SEQUENCE codon` · `CODON_MODEL` | **not in v2.** There are no codon models, so no dN/dS |
+| `SEQUENCE codon` · `CODON_MODEL` | Version 2 provides `gy94`, with `omega` as dN/dS, through `--model gy94 --omega`. |
 | `ALPHA` | `--gamma-shape A` — the Gamma shape for rate variation across sites, with `--rate-categories N` for the class count (4 by default). It decorates the model, not the rate |
 | `BETA` | `--invariant P` — the proportion of sites that never change (`+I`), if that is what it set; v1's key is not documented here, so check your old control file |
 

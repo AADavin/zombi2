@@ -83,7 +83,7 @@ run first. The levels you run are composed into one seeded,
   [nucleotide](https://aadavin.github.io/zombi2/docs/guide/genomes-nucleotide/) genomes, with real
   DNA along each chromosome.
 - **[Sequences](https://aadavin.github.io/zombi2/docs/guide/sequences/)** — nucleotide (JC69,
-  K80, HKY85, GTR) and protein substitution models run down each gene tree, with ancestral
+  K80, HKY85, GTR), codon (GY94) and protein substitution models run down each gene tree, with ancestral
   sequences at every node.
 - **[Traits](https://aadavin.github.io/zombi2/docs/guide/traits/)** — continuous traits that
   diffuse, revert to an optimum or shift at speciation, and discrete traits switching between

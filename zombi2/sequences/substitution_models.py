@@ -6,13 +6,13 @@ Different models are genuinely different matrices — Jukes–Cantor, K80, HKY85
 transition/transversion structure and base composition — so, unlike the clock, they do **not**
 collapse to one grammar: they stay a menu of constructors, each taking its own physical parameters.
 
-Two alphabets are on the menu: the four **nucleotide** models (4 states, ``ACGT`` — `jc69()` ·
-`k80()` · `hky85()` · `gtr()`) and the five **protein** models (20 states,
-`AMINO_ACIDS` — `poisson()` · `jtt()` · `dayhoff()` · `wag()` · `lg()`).
-The protein models are *empirical*: their exchangeabilities and frequencies were estimated once from
-large alignments and are read off the published matrices (`_aa_matrices`), so they take **no
-free parameters** — you pick one, you do not tune it. Codon models are not in the menu; adding one is
-a pure extension of it, no refactor.
+The four nucleotide models use four states, ``ACGT``: `jc69()`, `k80()`, `hky85()` and `gtr()`.
+The five protein models use 20 states, `AMINO_ACIDS`: `poisson()`, `jtt()`, `dayhoff()`, `wag()`
+and `lg()`. Researchers estimated the protein models' exchangeabilities and frequencies once from
+large alignments. The protein models read those estimates from the published matrices in
+``_aa_matrices``. They take no free parameters. `gy94()` implements Goldman and Yang's (1994) codon
+model with codon states excluding stop codons. Runs write DNA with three bases per codon. Required
+``omega`` sets selection on the protein.
 
 **A matrix of your own** goes through `reversible()`: a symmetric exchangeability matrix ``S`` and
 frequencies ``π``, normalised the same way, over any alphabet. It is the door the menu itself uses,
@@ -52,6 +52,17 @@ BASES = "ACGT"
 #: published in (``A R N D C Q E G H I L K M F P S T W Y V``) — the order ``Q`` and ``stationary``
 #: follow for the protein models, and the order `decode()` reads them back in.
 AMINO_ACIDS = "ARNDCQEGHILKMFPSTWYV"
+
+#: The genetic codes a codon model can be built on, by NCBI translation-table number: the amino
+#: acid of each of the 64 codons, in the tables' own ``TCAG`` order (``TTT, TTC, TTA, TTG, TCT, …``),
+#: with ``*`` for a stop. **11** is the bacterial, archaeal and plant-plastid code, whose amino
+#: acids are the standard code's; **4** is the mycoplasma and spiroplasma code, where ``TGA`` is
+#: tryptophan rather than a stop.
+GENETIC_CODES: dict[int, str] = {
+    11: "FFLLSSSSYY**CC*WLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG",
+    4: "FFLLSSSSYY**CCWWLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG",
+}
+_TABLE_ORDER = tuple(a + b + c for a in "TCAG" for b in "TCAG" for c in "TCAG")
 
 
 @dataclass(frozen=True)
@@ -95,6 +106,11 @@ class SubstitutionModel:
     profile_models: tuple["SubstitutionModel", ...] = ()
     #: the weight of each profile, in the same order; sums to 1
     profile_weights: tuple[float, ...] = ()
+    #: for a **codon** model (`gy94`), the triplet each state is written as, in the order ``Q`` and
+    #: ``stationary`` follow. A state is then a codon and ``alphabet`` is the letters those triplets
+    #: are spelled in, so the sequences a run writes are DNA, three letters to a state. Empty for a
+    #: nucleotide or a protein model, where a state is one letter of ``alphabet``.
+    codons: tuple[str, ...] = ()
 
     #: the reversible eigendecomposition `p_matrix()` runs on, filled in by ``__post_init__``
     #: (through ``object.__setattr__``, since the dataclass is frozen). Not part of the public
@@ -105,6 +121,15 @@ class SubstitutionModel:
 
     def __post_init__(self) -> None:
         self._check_reversible()
+        if self.codons:
+            ok = (len(self.codons) == self.Q.shape[0] and len(set(self.codons)) == len(self.codons)
+                  and all(isinstance(c, str) and len(c) == 3 and set(c) <= set(self.alphabet)
+                          for c in self.codons))
+            if not ok:
+                raise ValueError(
+                    f"codons must name each of the model's {self.Q.shape[0]} states once, as "
+                    f"three letters of its alphabet {self.alphabet!r}; build a codon model with "
+                    f"gy94(), which does this.")
         rates, shares = self.site_rates, self.site_shares
         if len(rates) != len(shares) or not rates:
             raise ValueError(f"site_rates and site_shares must be the same non-empty length, got "
@@ -180,14 +205,18 @@ class SubstitutionModel:
                 f"{self.name} is not a K-state model: a rate matrix is K×K with K stationary "
                 f"frequencies beside it, got Q of shape {Q.shape} and stationary of shape "
                 f"{pi.shape}.")
-        if len(self.alphabet) != k:
+        # A codon model writes each state as three letters, so its alphabet is the letters and its
+        # `codons` are what has to match Q — checked in `__post_init__`, right after this.
+        if self.codons:
+            pass
+        elif len(self.alphabet) != k:
             raise ValueError(
                 f"{self.name}'s alphabet {self.alphabet!r} has {len(self.alphabet)} characters but "
                 f"its Q is {k}×{k}. The alphabet is the *order* Q and stationary are written in and "
                 f"the letters the sequences are decoded back into, so one character per state is "
                 f"what makes those two agree. Use BASES (the 4 nucleotides), AMINO_ACIDS (the 20 "
                 f"residues), or {k} distinct characters of your own.")
-        if len(set(self.alphabet)) != k or not self.alphabet.isascii():
+        if not self.codons and (len(set(self.alphabet)) != k or not self.alphabet.isascii()):
             raise ValueError(
                 f"{self.name}'s alphabet {self.alphabet!r} must be {k} distinct ASCII "
                 f"characters: a repeated letter would make two states decode the same and could "
@@ -359,7 +388,7 @@ class SubstitutionModel:
         if self.alphabet != AMINO_ACIDS:
             raise ValueError(
                 f"a profile mixture is a set of amino-acid profiles, and {self.name} is a "
-                f"{len(self.alphabet)}-state model over {self.alphabet!r}. Start from a protein "
+                f"{self.k}-state model written over {self.alphabet!r}. Start from a protein "
                 f"model: lg(), wag(), jtt(), dayhoff() or poisson().")
         label = mixture.upper() if isinstance(mixture, str) else mixture
         if label not in MIXTURES:
@@ -391,13 +420,14 @@ def _with_frequencies(model: SubstitutionModel, frequencies, *, name: str) -> Su
     S = model.Q / model.stationary[None, :]
     S = (S + S.T) / 2.0
     np.fill_diagonal(S, 0.0)
-    out = _reversible_model(name, S, frequencies, model.alphabet)
+    out = _reversible_model(name, S, frequencies, model.alphabet, model.codons)
     # the rate classes ride along: a profile says which residues, `+G` says how fast, and the two
     # are independent (see `across_sites`)
     return replace(out, site_rates=model.site_rates, site_shares=model.site_shares)
 
 
-def _reversible_model(name: str, S: np.ndarray, pi, alphabet: str = BASES) -> SubstitutionModel:
+def _reversible_model(name: str, S: np.ndarray, pi, alphabet: str = BASES,
+                      codons: tuple[str, ...] = ()) -> SubstitutionModel:
     """Build a normalised reversible model from a symmetric exchangeability matrix ``S`` and ``pi``.
 
     ``Q_ij = S_ij · pi_j`` (i≠j), scaled so the expected rate ``-Σ pi_i Q_ii = 1`` (branch lengths
@@ -433,7 +463,11 @@ def _reversible_model(name: str, S: np.ndarray, pi, alphabet: str = BASES) -> Su
     scale = -(pi * np.diag(Q)).sum()
     if scale <= 0:
         raise ValueError("degenerate substitution model (zero rate)")
-    return SubstitutionModel(name, Q / scale, pi, alphabet)
+    # One substitution per STATE is the scale, and a codon model's state is three bases. Every
+    # change it makes is one base, so three per codon is one per base — the unit every other model
+    # on the menu writes a branch length in.
+    per_state = 3.0 if codons else 1.0
+    return SubstitutionModel(name, Q * (per_state / scale), pi, alphabet, codons=codons)
 
 
 def _gtr_model(name: str, exch, pi) -> SubstitutionModel:
@@ -513,6 +547,78 @@ def reversible(exchangeabilities, frequencies, *, name: str = "Custom",
     Experimental (SPEC §9): Python API only, and the spelling may still move.
     """
     return _reversible_model(name, exchangeabilities, frequencies, alphabet)
+
+
+# --- the codon model: 61 or 62 states, mechanistic ------------------------------------------------
+
+def _codon_table(code: int) -> tuple[tuple[str, ...], dict[str, str]]:
+    """``(sense codons in ACGT order, {codon: amino acid})`` for one genetic code."""
+    if isinstance(code, bool) or code not in GENETIC_CODES:
+        raise ValueError(
+            f"code is an NCBI translation table, and the ones built in are "
+            f"{', '.join(map(str, sorted(GENETIC_CODES)))} — 11 for bacteria and archaea (the "
+            f"standard amino acids), 4 where TGA is tryptophan (mycoplasmas). Got {code!r}.")
+    amino = dict(zip(_TABLE_ORDER, GENETIC_CODES[code]))
+    return tuple(sorted(c for c in _TABLE_ORDER if amino[c] != "*")), amino
+
+
+def gy94(*, omega: float, kappa: float = 2.0, frequencies=None, code: int = 11) -> SubstitutionModel:
+    """``gy94`` implements the codon model of Goldman and Yang (1994). Each codon state contributes
+    three bases to the DNA sequences that runs write. The codon model excludes stop codons, so runs
+    never write them. Changes to two or three bases at once have substitution rate 0.
+
+    Required ``omega`` multiplies substitution rates for amino acid changes relative to changes
+    preserving the amino acid: 1 means no selection on the protein, 0.1 permits one such change in
+    ten. ``kappa`` multiplies transition substitution rates (A with G, C with T) relative to
+    transversions, with default 2.0, as for ``hky85``. ``frequencies`` accepts four base
+    frequencies in A, C, G, T order or one frequency per codon excluding stop codons in
+    alphabetical order. Four base frequencies give each codon's frequency as the product of its
+    three base frequencies, renormalised over codons excluding stop codons. The default gives equal
+    codon frequencies.
+
+    ``code`` selects the NCBI genetic code, defaulting to 11 for bacteria and archaea, with 61
+    codons excluding stop codons. Code 4 supports mycoplasmas, assigns TGA to tryptophan, and has
+    62 codons excluding stop codons. A branch length measures substitutions per base, preserving
+    the ``hky85`` meanings of ``divergence``, phylograms and the saturation warning. PAML and
+    IQ-TREE report substitutions per codon, giving branch lengths three times larger."""
+    for label, value in (("omega", omega), ("kappa", kappa)):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) \
+                or not np.isfinite(value) or value <= 0:
+            raise ValueError(f"{label} must be a positive number, got {value!r}")
+    codons, amino = _codon_table(code)
+    k = len(codons)
+    if frequencies is None:
+        pi = np.full(k, 1.0 / k)
+    else:
+        given = np.asarray(frequencies, dtype=float)
+        if given.shape == (4,):
+            # base frequencies, in ACGT order: a codon's is the product of its three bases',
+            # renormalised over the codons that are not stops
+            if given.min() <= 0 or not np.isclose(given.sum(), 1.0):
+                raise ValueError(f"the four base frequencies must be positive and sum to 1, got "
+                                 f"{tuple(given)}")
+            base = dict(zip(BASES, given))
+            pi = np.array([base[c[0]] * base[c[1]] * base[c[2]] for c in codons])
+            pi = pi / pi.sum()
+        elif given.shape == (k,):
+            pi = given
+        else:
+            raise ValueError(
+                f"frequencies takes 4 base frequencies (A, C, G, T) or {k} codon frequencies, one "
+                f"per codon of code {code} that is not a stop, in alphabetical order (AAA, AAC, "
+                f"AAG, …). Got {given.size} numbers.")
+    transitions = {("A", "G"), ("G", "A"), ("C", "T"), ("T", "C")}
+    S = np.zeros((k, k))
+    for i, x in enumerate(codons):
+        for j in range(i + 1, k):
+            y = codons[j]
+            changed = [(a, b) for a, b in zip(x, y) if a != b]
+            if len(changed) != 1:               # two or three bases apart: not one event
+                continue
+            rate = (kappa if changed[0] in transitions else 1.0) \
+                * (1.0 if amino[x] == amino[y] else omega)
+            S[i, j] = S[j, i] = rate
+    return _reversible_model("GY94", S, pi, BASES, codons)
 
 
 # --- the protein models: 20 states, empirical exchangeabilities + frequencies ----------------------
@@ -599,6 +705,51 @@ def encode(seq: str, alphabet: str = BASES) -> np.ndarray:
         raise ValueError(f"sequence has {e.args[0]!r}, not in the model's alphabet {alphabet!r}") from None
 
 
-__all__ = ["SubstitutionModel", "jc69", "k80", "hky85", "gtr", "reversible",
+#: one lookup table per set of codons: ``lut[state]`` is the three ASCII bytes of that state
+_CODON_LUT: dict[tuple[str, ...], np.ndarray] = {}
+
+
+def letters_of(model: SubstitutionModel, states: np.ndarray) -> str:
+    """`decode()` for a **model**: the letters its states are written as — one letter a state for a
+    nucleotide or a protein model, three for a codon model. ``states`` may be multi-dimensional, as
+    for `decode()`; the rows come back end to end, each ``width × length`` letters."""
+    if not model.codons:
+        return decode(states, model.alphabet)
+    lut = _CODON_LUT.get(model.codons)
+    if lut is None:
+        lut = np.frombuffer("".join(model.codons).encode("ascii"), dtype=np.uint8).reshape(-1, 3)
+        _CODON_LUT[model.codons] = lut
+    return lut[np.asarray(states)].tobytes().decode("ascii")
+
+
+def states_of(model: SubstitutionModel, seq: str) -> np.ndarray:
+    """`encode()` for a **model**: a sequence in the model's letters to its integer states. For a
+    codon model the sequence is read three letters at a time, so it has to be a whole number of
+    codons, and none of them a stop — a stop is not a state the model has."""
+    if not model.codons:
+        return encode(seq, model.alphabet)
+    if len(seq) % 3:
+        raise ValueError(f"the sequence has {len(seq)} letters, which is not a whole number of "
+                         f"codons")
+    index = {c: i for i, c in enumerate(model.codons)}
+    try:
+        return np.fromiter((index[seq[i:i + 3]] for i in range(0, len(seq), 3)),
+                           dtype=np.int8, count=len(seq) // 3)
+    except KeyError as e:
+        codon = e.args[0]
+        if set(codon) <= set(model.alphabet):
+            raise ValueError(
+                f"codon {codon!r} is a stop codon in this model's genetic code, so it is not a "
+                f"state the model has. Leave a gene's stop codon out of its sequence") from None
+        raise ValueError(f"sequence has {codon!r}, which is not three letters of the model's "
+                         f"alphabet {model.alphabet!r}") from None
+
+
+def width_of(model: SubstitutionModel) -> int:
+    """How many letters one state is written as: 3 for a codon model, 1 otherwise."""
+    return 3 if model.codons else 1
+
+
+__all__ = ["SubstitutionModel", "jc69", "k80", "hky85", "gtr", "gy94", "reversible",
            "poisson", "jtt", "dayhoff", "wag", "lg", "decode", "encode", "BASES", "AMINO_ACIDS",
-           "PROFILE_MIXTURES"]
+           "GENETIC_CODES", "PROFILE_MIXTURES"]

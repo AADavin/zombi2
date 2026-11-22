@@ -91,7 +91,8 @@ from .indels import draw_indel_history
 from .lineage_models import Models
 from .multipliers import family_multipliers
 from .substitution_models import (BASES, SubstitutionModel, _with_frequencies, dayhoff, decode,
-                                  encode, gtr, hky85, jc69, jtt, k80, lg, poisson, wag)
+                                  encode, gtr, gy94, hky85, jc69, jtt, k80, letters_of, lg,
+                                  poisson, states_of, wag, width_of)
 
 _WRITE_OUTPUTS = ("summary", "alignments", "ancestral", "founding", "phylograms", "species_phylogram",
                   "genomes", "initial_genome", "events", "family_multipliers", "assignments")
@@ -760,8 +761,8 @@ def _split(gene_tree, states_by_id: dict[int, np.ndarray], names,
     # whose flat decode is the node strings back to back — sliced out below. Byte-identical to
     # decoding each node on its own, but it pays the numpy/ASCII-decode overhead once, not per node.
     stacked = np.stack([states_by_id[id(n)] for n in nodes])
-    flat = decode(stacked, model.alphabet)
-    length = stacked.shape[1]
+    flat = letters_of(model, stacked)
+    length = stacked.shape[1] * width_of(model)     # a codon model writes three letters a state
     alignment: dict[str, str] = {}
     ancestral: dict[str, str] = {}
     for i, node in enumerate(nodes):
@@ -1189,6 +1190,46 @@ def _resolve_partitions(model, partitions,
     return tuple(parts)
 
 
+def _one_model(m) -> SubstitutionModel:
+    """A model to read the states and letters off: ``m`` itself, or any member of a per-lineage
+    set — `Models.set_by` has checked that they all agree on both."""
+    return m if isinstance(m, SubstitutionModel) else next(iter(m.models.values()))
+
+
+def _in_states(parts, *, counted: bool = True):
+    """``parts`` with each site count turned from **letters** into **states**.
+
+    `length=` and a partition's site count say how long a sequence is, in the letters it is
+    written in. For a nucleotide or a protein model a letter is a state and this returns ``parts``
+    as they are. For a **codon** model a state is three letters, so a count has to be a multiple
+    of 3 and is divided by it — the engine evolves states.
+
+    A codon model and a nucleotide model both write ``ACGT``, so the alphabet test that keeps DNA
+    and protein partitions apart cannot tell them apart; this is where they are. ``counted=False``
+    leaves the counts alone: the placeholder a run uses when every family brings its own length."""
+    models = [_one_model(m) for m, _n in parts]
+    if not any(m.codons for m in models):
+        return parts
+    for i, m in enumerate(models):
+        if m.codons != models[0].codons:
+            raise ValueError(
+                f"partition 0 is {models[0].name} and partition {i} is {m.name}, and the two do "
+                f"not have the same states: one is a codon model and the other is not, or they "
+                f"are built on different genetic codes. Mixing them in one family is not "
+                f"implemented. Give every partition a codon model on one code, or none.")
+    if not counted:
+        return parts
+    out = []
+    for (m, n), one in zip(parts, models):
+        if n % 3:
+            raise ValueError(
+                f"{one.name} is a codon model, so a sequence is a whole number of codons, and "
+                f"{n} sites is not a multiple of 3. A length here counts bases, as it does for "
+                f"every DNA model.")
+        out.append((m, n // 3))
+    return tuple(out)
+
+
 def _resolve_profiles(profiles, model, length) -> dict:
     """``{family: ((model, 1), (model, 1), …)}`` — one single-site model per position, built from a
     site profile.
@@ -1209,6 +1250,11 @@ def _resolve_profiles(profiles, model, length) -> dict:
             f"profiles must be a dict of {{family: array}} — one (L, K) array per family you have a "
             f"profile for, not {type(profiles).__name__}. Families you leave out evolve under `model` "
             f"as usual.")
+    if _one_model(model).codons:
+        raise ValueError(
+            f"profiles= gives each site its own equilibrium frequencies over the residues, and "
+            f"{model.name} is a codon model, whose frequencies are over codons. A per-site profile "
+            f"of codons is not implemented. Use a protein or a nucleotide model with profiles=.")
     k = len(model.alphabet)
     out = {}
     for family, profile in profiles.items():
@@ -1395,7 +1441,7 @@ def _evolve_partitions(gt, parts, rate, clock, rng, cdf_caches, names, founding=
             cdf_cache=cdf_caches, models=per_species, record=record)
         at += n
         aln, anc = _split(gt, states, names, base, present=present)
-        pieces.append((aln, anc, decode(founding_states, base.alphabet)))
+        pieces.append((aln, anc, letters_of(base, founding_states)))
     if whole_ids is not None:
         record.site_ids = None if whole_ids == tuple(range(at)) else whole_ids
     if len(pieces) == 1:
@@ -1491,6 +1537,12 @@ def gene(*, name: str, model, length: int, substitution=None,
         raise ValueError(f"a gene needs a name — the family the genome run declared; got {name!r}")
     if not isinstance(length, int) or isinstance(length, bool) or length < 1:
         raise ValueError(f"length must be a positive integer number of sites, got {length!r}")
+    if getattr(model, "codons", ()):
+        raise ValueError(
+            f"gene {name!r} is given {model.name}, a codon model, and a joint run does not read "
+            f"one yet: what a gene offers there is the share of some residues among its states, "
+            f"and a codon model's states are codons. Use a nucleotide or a protein model, or run "
+            f"the codon model on its own with simulate_sequences(g, model=...).")
     if offers is not None and not isinstance(offers, OfferedComposition):
         raise TypeError(
             f"offers= is what this gene publishes, written with sequences.composition('KR', "
@@ -1756,7 +1808,7 @@ def _given_founding(founding, genomes, gene_trees, parts) -> "dict[int, np.ndarr
     if not records:
         raise ValueError("founding= is empty, so it starts no family from a given sequence. Leave "
                          "it off to draw every founding sequence.")
-    alphabet = parts[0][0].alphabet
+    one = _one_model(parts[0][0])
     fixed = sum(int(n) for _m, n in parts) if len(parts) > 1 else None
     out: dict[int, np.ndarray] = {}
     for key, seq in records.items():
@@ -1766,15 +1818,16 @@ def _given_founding(founding, genomes, gene_trees, parts) -> "dict[int, np.ndarr
         if not isinstance(seq, str) or not seq:
             raise ValueError(f"founding= gives family {fam} no sequence: {seq!r}.")
         try:
-            out[fam] = encode(seq.upper(), alphabet)
+            out[fam] = states_of(one, seq.upper())
         except ValueError as e:
             raise ValueError(f"founding=, family {fam}: {e}. A given sequence is written in the "
                              f"alphabet the model evolves it in.") from None
-        if fixed is not None and len(seq) != fixed:
+        if fixed is not None and len(out[fam]) != fixed:
+            width = width_of(one)
             raise ValueError(
                 f"founding=, family {fam}: the sequence has {len(seq)} sites and the partitions "
-                f"add up to {fixed}. Partitions fix how many sites a family has, so a given "
-                f"sequence has to be exactly that long.")
+                f"add up to {fixed * width}. Partitions fix how many sites a family has, so a "
+                f"given sequence has to be exactly that long.")
     _stray_families("founding=", out, gene_trees)
     return out
 
@@ -1872,7 +1925,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     extant tips.
 
     ``model`` is a substitution model from the menu (`substitution_models`) — nucleotide
-    ``jc69`` · ``k80`` · ``hky85`` · ``gtr``, or protein ``poisson`` · ``jtt`` · ``dayhoff`` ·
+    ``jc69`` · ``k80`` · ``hky85`` · ``gtr``, the codon model ``gy94``, or protein ``poisson`` ·
+    ``jtt`` · ``dayhoff`` ·
     ``wag`` · ``lg``; its alphabet is what the sequences are written in (``ACGT`` or the 20 amino
     acids). ``length`` is the number of sites. ``substitution`` is the per-site substitution
     rate (default ``1.0``): a branch of ``Δt`` time accrues ``substitution · Δt`` substitutions/site.
@@ -2088,6 +2142,25 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
             "indels change how many sites a lineage has, and partitions/profiles are written "
             "against a fixed site count — so a site's partition or profile would stop meaning "
             "anything the moment one fired. Use one or the other.")
+    codon = any(getattr(m, "codons", ()) for m in
+                (model, intergene_model, *(p[0] for p in (partitions or ())
+                                           if isinstance(p, (tuple, list)) and p)))
+    if codon and nucleotide:
+        raise ValueError(
+            "a codon model is not read on a nucleotide genome run yet: there a gene sits on a "
+            "strand and in a reading frame, and may share bases with the gene beside it, and "
+            "none of that is carried to the model. Run it on a family or ordered genome run, "
+            "where a gene family is one sequence in one frame.")
+    if codon and (insertion or deletion):
+        raise ValueError(
+            "indels are not read with a codon model yet: they would have to come in whole "
+            "codons to keep the reading frame, and their lengths are drawn in sites. Drop the "
+            "indels, or use a nucleotide model.")
+    if codon and record:
+        raise ValueError(
+            "record=True is not read with a codon model yet: it writes each substitution as one "
+            "letter becoming another, and a codon model's states are three letters. Record a run "
+            "under a nucleotide or a protein model.")
     if founding is not None and nucleotide:
         raise ValueError(
             "founding= gives a gene family its starting sequence, and a nucleotide genome run "
@@ -2281,7 +2354,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         # the families that still draw — and with none of those, it need not be given at all. The
         # placeholder is never read: every family then brings its own length.
         no_length = founding is not None and length is None and partitions is None
-        parts = _resolve_partitions(model, partitions, 1 if no_length else length)
+        parts = _in_states(_resolve_partitions(model, partitions, 1 if no_length else length),
+                           counted=not no_length)
         # A per-lineage model set is painted against THIS run's tree, once, before any family is
         # evolved — the same shape as a driven rate resolving its trajectory above. It is checked
         # here too: a label that names no lineage, or a lineage with no model, is a run that would
@@ -2657,7 +2731,7 @@ __all__ = ["simulate_sequences", "SequencesResult", "StreamedSequences",
            "gene", "GeneSpec", "composition", "OfferedComposition",
            # the substitution-model menu, re-exported: the TypeError raised for a bad
            # `model=` names these symbols, so they must be importable from the module it names
-           "jc69", "k80", "hky85", "gtr", "poisson", "jtt", "dayhoff", "wag", "lg",
+           "jc69", "k80", "gy94", "hky85", "gtr", "poisson", "jtt", "dayhoff", "wag", "lg",
            "SubstitutionModel",
            # the per-lineage model set: the TypeError for a bad `model=` names it too
            "Models"]
