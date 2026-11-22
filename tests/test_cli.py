@@ -364,7 +364,6 @@ def test_genomes_is_deterministic_across_resolutions(tmp_path, tree_file):
 
 @pytest.mark.parametrize("argv, why", [
     (["--initial-families", "5"], "nucleotide has no initial-families"),
-    (["--replacement"], "nucleotide transfers are additive"),
     (["--loss", "PerLineage(0.2).varying_among('families', LogNormal(0.0, 0.5))"], "nucleotide wires changing_at and scaled_by, not a per-family draw"),
     (["--gff", "x.gff", "--genes", "3"], "gff and genes are mutually exclusive"),
     (["--write", "gene_order"], "gene_order is an ordered output"),
@@ -2084,8 +2083,10 @@ def test_the_log_records_the_options_this_resolution_has(tmp_path, tree_file):
     keys = lambda log: {ln.split("\t")[0] for ln in log.splitlines() if "\t" in ln}
 
     assert not keys(fam_log) & {"root_length", "gene_length", "inversion", "chromosomes", "gff"}
-    assert not keys(nuc_log) & {"initial_families", "replacement", "max_family_size"}
-    assert "root_length" in keys(nuc_log)          # ...and it does record what it HAS
+    assert not keys(nuc_log) & {"initial_families", "max_family_size"}
+    # ...and it does record what it HAS — `replacement` among it, since a nucleotide transfer may
+    # now overwrite the recipient's homologue
+    assert {"root_length", "replacement"} <= keys(nuc_log)
     assert {"duplication", "seed", "resolution"} <= keys(fam_log)
 
 

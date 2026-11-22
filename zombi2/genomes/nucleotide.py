@@ -83,7 +83,9 @@ Because every node votes on the partition, the recovery covers the **complete** 
 extant tips: any node's genome can be put back together (``NucleotideGenomesResult.assembly``), an
 extinct lineage and the root as readily as a survivor.
 
-A transfer here is always additive: it copies material in, it does not overwrite a homologue.
+An additive transfer inserts the donor's stretch beside the recipient's DNA. A replacing transfer
+overwrites the recipient's homologue with the donor's stretch. ``replacement`` is the probability
+that a transfer with a homologue overwrites it.
 """
 
 from __future__ import annotations
@@ -93,7 +95,7 @@ import collections
 import math
 import pathlib
 import warnings
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 
 from ..params.distributions import Geometric
@@ -119,7 +121,7 @@ from .._runtime.progress import progress_bar
 from .events import (GeneEdge, _copy_cell, _name, event_counts, events_tsv, gene_from_label,
                      gene_label,
                      node_from_label, node_label)
-from .family import resolve_modules
+from .family import ReplacementTally, resolve_modules, resolve_replacement
 from .gene_trees import (GeneTree, gene_trees_from_edges, write_gene_tree_table,
                          write_gene_trees)
 from .gff import read_fasta, read_gff
@@ -885,7 +887,7 @@ class Duplication:
 class Transfer:
     """A recorded nucleotide transfer — an ancestry-**changing** *birth* that couples two
     contemporaneous lineages, so it is a **horizontal** edge in a block's gene tree. At ``time`` an arc
-    on the donor branch ``lineage`` was copied into the recipient branch ``recipient`` (additive — the
+    on the donor branch ``lineage`` was copied into the recipient branch ``recipient`` (the
     donor keeps its copy). ``transferred`` names the parentage as ``(parent_copy, child_copy, source,
     start, end)`` rows — the donor's ``parent_copy`` begat the recipient's fresh ``child_copy`` over
     ``[start, end)`` of ``source``."""
@@ -900,6 +902,21 @@ class Transfer:
     #: coordinates, and an insertion's landing position appears nowhere else at all. *Used*, not
     #: created — an event that starts where an indel once cut still needs that position kept.
     cuts: tuple[tuple[int, int], ...] = ()
+    #: A **replacing** transfer only: the recipient's own material the arriving arc overwrote, as
+    #: ``(copy, source, start, end)`` rows — copy lineage ``copy`` lost ``[start, end)`` of
+    #: ``source``, exactly as a `Loss` names what it removed. Those copies die at this event, and
+    #: naming them here is what keeps the death and the arrival one event rather than two that
+    #: happen to share a time. Empty for an additive transfer.
+    replaced: tuple[tuple[int, int, int, int], ...] = ()
+
+    def __repr__(self) -> str:
+        # An additive transfer prints as it did before `replaced` existed. Its record is the same
+        # record, and a seeded run's printed events are pinned against a stored fixture
+        # (`tests/data/nucleotide_golden.txt`), which a new field left empty should not disturb.
+        tail = f", replaced={self.replaced!r})" if self.replaced else ")"
+        return (f"Transfer(time={self.time!r}, lineage={self.lineage!r}, "
+                f"recipient={self.recipient!r}, transferred={self.transferred!r}, "
+                f"cuts={self.cuts!r}{tail}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -972,6 +989,9 @@ class NucleotideGenomesResult:
     #: copy lineage and begins none, so the gene-tree recovery must not read it. Empty unless
     #: ``deletion`` was on.
     deletions: list[Deletion] = field(default_factory=list)
+    #: ``replacements`` holds the transfer summary with ``found_resident``, ``replaced``, and
+    #: ``added_beside``. It is ``None`` when ``replacement`` was 0.
+    replacements: "dict[str, int] | None" = None
 
     def __repr__(self) -> str:
         # `events` here is the block log — an event over an arc of DNA — not the gene-tree edges the
@@ -1421,8 +1441,9 @@ class NucleotideGenomesResult:
 
         The same correction as the other two resolutions: a `GeneEdge` is one gene-tree *edge*, so a
         duplication, a transfer and a speciation each end one gene and start two, and counting edges
-        inflates them exactly 2×; this is the corrected count. (A transfer here is always additive,
-        with no ``replacement`` option, so no displaced copy to fold in.) `event_counts` is shared
+        inflates them exactly 2×; this is the corrected count. (With ``replacement``, the log folds a
+        displaced copy into its transfer's row, as at the family resolution, and `event_counts`
+        counts every gene that died.) `event_counts` is shared
         with them, reading `genealogy` — the `GeneEdge` translation every resolution writes — so the
         three agree by construction rather than by three separate implementations agreeing by luck.
 
@@ -1447,6 +1468,10 @@ class NucleotideGenomesResult:
             "seed": self.seed,
             "resolution": "nucleotide",
             "events": event_counts(self.genealogy, t0),
+            # how the transfers that found a homologue split, so a run's replacing ones can be read
+            # against the `replacement` probability; absent when replacement was off, as at the
+            # family resolution
+            **({"transfers": self.replacements} if self.replacements is not None else {}),
             "extant_genomes": len(extant),
             # every gene the run holds, not only the ones declared at the start: `origination`
             # and `chromosome_origination` both mint genes into `gene_spans` as the run goes,
@@ -1654,8 +1679,14 @@ def _nucleotide_events_tsv(events, tree, names=None) -> str:
             for (parent, child, source, start, end) in e.copied:
                 row(e.time, "duplication", (parent,), (child,), chrom, (source, start, end), e.cuts)
         elif isinstance(e, Transfer):
+            # An additive transfer keeps the kind it always had. A replacing one writes
+            # `transfer_replacing`, the events table's own word: its rows with a child are the DNA
+            # that arrived, and its rows without one are the recipient's DNA it overwrote.
+            kind = "transfer_replacing" if e.replaced else "transfer"
             for (parent, child, source, start, end) in e.transferred:
-                row(e.time, "transfer", (parent,), (child,), None, (source, start, end), e.cuts)
+                row(e.time, kind, (parent,), (child,), None, (source, start, end), e.cuts)
+            for (copy, source, start, end) in e.replaced:
+                row(e.time, kind, (copy,), (), None, (source, start, end), e.cuts)
         elif isinstance(e, Speciation):
             row(e.time, "speciation", (e.parent,), e.children)
         else:
@@ -1767,6 +1798,7 @@ def _edges_from_tsv(text: str) -> "tuple[list, list]":
     events: list = []
     deletions: list = []
     pending: list = []
+    overwritten: list = []          # the childless rows of the replacing transfer being gathered
     key = None
 
     def flush():
@@ -1790,21 +1822,32 @@ def _edges_from_tsv(text: str) -> "tuple[list, list]":
             events.append(Duplication(time, lineage, chrom,
                                       tuple((p, c, s, a, b) for (*_h, p, c, s, a, b, _k) in pending),
                                       cuts))
-        elif kind == "transfer":
+        elif kind in ("transfer", "transfer_replacing"):
             events.append(Transfer(time, lineage, recipient,
                                    tuple((p, c, s, a, b) for (*_h, p, c, s, a, b, _k) in pending),
-                                   cuts))
+                                   cuts, tuple(overwritten)))
         else:
             raise ValueError(f"block_events.tsv: unknown event kind {kind!r}")
         pending.clear()
+        overwritten.clear()
         key = None
 
     for cells in _rows(text, _NUCLEOTIDE_EVENT_COLS, "block_events.tsv"):
         (time, kind, parents, children, chrom, source, start, end, cuts) = cells
         if kind not in ("origination", "initial", "insertion", "loss", "deletion", "duplication",
-                        "transfer", "speciation"):
+                        "transfer", "transfer_replacing", "speciation"):
             raise ValueError(f"block_events.tsv: unknown event kind {kind!r}")
         ps, cs = _copies_cell(parents), _copies_cell(children)
+        if kind == "transfer_replacing" and not cs:
+            # what the transfer being gathered overwrote: it belongs to that event, and is on the
+            # recipient's branch where the rows before it are on the donor's, so it must not be
+            # keyed like them or it would start an event of its own
+            if not pending or pending[0][0] != "transfer_replacing" or pending[0][1] != float(time):
+                raise ValueError(
+                    "block_events.tsv: a transfer_replacing row with no child names DNA a transfer "
+                    "overwrote, and has to follow that transfer's own rows")
+            overwritten.append((ps[0][1], num(source), num(start), num(end)))
+            continue
         if kind == "speciation":
             # one row, both daughters in `children`; the copies carry the branches they were minted on
             flush()                                     # whatever is buffered happened before this
@@ -1814,7 +1857,7 @@ def _edges_from_tsv(text: str) -> "tuple[list, list]":
         # parent's for everything that ends a copy and the child's for an origination
         lineage = ps[0][0] if ps else cs[0][0]
         row = (kind, float(time), chromosome_from_label(chrom)[1] if chrom else None, lineage,
-               cs[0][0] if kind == "transfer" else None,
+               cs[0][0] if kind in ("transfer", "transfer_replacing") else None,
                ps[0][1] if ps else None, cs[0][1] if cs else None,
                num(source), num(start), num(end), cuts_from_cell(cuts))
         row_key = None if kind in ("origination", "initial", "insertion") else row[:5]
@@ -2075,14 +2118,110 @@ def _do_duplication(g, node_id, t, duplication_extent, rng, events, new_copy) ->
     return sum(end - beg for (_par, _child, _src, beg, end) in copied)
 
 
+def _homologous_stretches(rgenome, arc, inserted=frozenset()) -> list[tuple]:
+    """Where the recipient holds the **homologue** of a donor's arc: ``[(chromosome, start, length,
+    flipped), …]`` in physical coordinates, one per place a replacing transfer could land.
+
+    The rule is the arc's two **end bases**. Find both in the recipient — the same two ancestral
+    positions — in the arc's own order and orientation, or with the whole stretch flipped. What lies
+    between them, ends included, is the homologue. Each first base is paired with the *nearest* last
+    base beyond it, so a region the recipient holds twice gives two stretches rather than one that
+    swallows both.
+
+    A stretch counts only if it is nothing but the arc's own material: every base between the two
+    ends descends from an interval the arc carries, or is spacer an indel put there (``inserted``,
+    the sources insertions made). Anything else between them — a gene that moved in, the far side of
+    an inversion — would be deleted by the replacement without being anything the arc replaces, so
+    that is not a homologue and the transfer is additive. So is one whose end base the recipient no
+    longer has.
+
+    The ends need no rule of their own. They are the donor's breakpoints, which never fall inside a
+    gene, and a gene's span is a fact about the ancestral sequence: a position outside every gene on
+    the donor is outside every gene on the recipient.
+
+    The arc's own blocks are never an end, which is what keeps a self-transfer from replacing the
+    very stretch it copied: it lands on another copy of the region, or is additive."""
+    first, last = arc[0], arc[-1]
+    a = (first.source, first.start if first.strand == 1 else first.end - 1)
+    z = (last.source, last.end - 1 if last.strand == 1 else last.start)
+    own = {id(b) for b in arc}
+    # the arc's material, by source, as merged intervals
+    spans: dict[int, list[tuple[int, int]]] = {}
+    for src in {b.source for b in arc}:
+        merged: list[tuple[int, int]] = []
+        for lo, hi in sorted((b.start, b.end) for b in arc if b.source == src):
+            if merged and lo <= merged[-1][1]:
+                merged[-1] = (merged[-1][0], max(merged[-1][1], hi))
+            else:
+                merged.append((lo, hi))
+        spans[src] = merged
+
+    def carried(src, lo, hi) -> bool:
+        return any(x <= lo and hi <= y for (x, y) in spans.get(src, ()))
+
+    out = []
+    for chrom in rgenome.chromosomes:
+        total, ring = chrom.length, chrom.topology == "circular"
+        starts, ends, at = [], [], 0             # (physical position, strand) of each end base
+        layout = []                              # (physical start, block), for the content test
+        for b in chrom.blocks:
+            layout.append((at, b))
+            if id(b) not in own:
+                if b.source == a[0] and b.start <= a[1] < b.end:
+                    starts.append((at + (a[1] - b.start if b.strand == 1 else b.end - 1 - a[1]),
+                                   b.strand))
+                if b.source == z[0] and b.start <= z[1] < b.end:
+                    ends.append((at + (z[1] - b.start if b.strand == 1 else b.end - 1 - z[1]),
+                                 b.strand))
+            at += b.length
+        for pa, sa in starts:
+            for flipped in (False, True):
+                want_a = -first.strand if flipped else first.strand
+                want_z = -last.strand if flipped else last.strand
+                if sa != want_a:
+                    continue
+                # how far the last base lies beyond the first, in the direction the arc reads here
+                reach = [((pa - pz) if flipped else (pz - pa)) % total if ring
+                         else ((pa - pz) if flipped else (pz - pa))
+                         for pz, sz in ends if sz == want_z]
+                reach = [d for d in reach if d >= 0]
+                if not reach:
+                    continue
+                length = min(reach) + 1
+                start = (pa - length + 1) % total if flipped else pa
+                try:                             # a guard: the ends are legal by construction
+                    chrom._check_cut(start)
+                    chrom._check_cut((start + length) % total if ring else start + length)
+                except _CutsGene:
+                    continue
+                ok = True
+                for at_b, b in layout:           # every base of the stretch is the arc's, or an indel's
+                    for lo, hi in ((start, min(start + length, total)),
+                                   *(((0, start + length - total),) if start + length > total else ())):
+                        u, v = max(lo, at_b), min(hi, at_b + b.length)
+                        if u >= v or b.source in inserted and not b.is_gene:
+                            continue
+                        if b.strand == 1:
+                            piece = (b.start + (u - at_b), b.start + (v - at_b))
+                        else:
+                            piece = (b.end - (v - at_b), b.end - (u - at_b))
+                        if id(b) in own or not carried(b.source, *piece):
+                            ok = False
+                if ok and (chrom, start, length, flipped) not in out:
+                    out.append((chrom, start, length, flipped))
+    return out
+
+
 def _do_transfer(rng, tree, alive, gen, kd, t, transfer_extent, transfer_to, self_transfer, depth,
-                 events, new_copy, to_traj=None, groups=None) -> int:
+                 events, new_copy, to_traj=None, groups=None, replacement=0.0, tally=None,
+                 inserted=frozenset()) -> int:
     """Copy a geometric-length arc of the donor lineage ``alive[kd]`` into a **contemporaneous
     recipient** chosen by ``transfer_to`` — ``"uniform"``, a `Distance` weighting, a `Clades` kernel,
     or a driven recipient weight: the arc's copy lineages beget fresh children that arrive as a block
     at a random spot on a random recipient chromosome (strands travel with them). A horizontal edge in
-    each block's gene tree. **Additive** — the donor keeps its copy — so it returns the recipient's
-    length gain (0 on a no-op).
+    each block's gene tree. The donor keeps its copy. By default the arrival is **additive**, and
+    under ``replacement`` it may land on the recipient's homologue and overwrite it
+    (`_homologous_stretches`). Returns the recipient's change in length (0 on a no-op).
 
     A transfer here being additive is what makes steering a pure statement about *where* the DNA
     lands: nothing is removed from the donor either way, so a kernel that forbids a pair only moves
@@ -2137,6 +2276,34 @@ def _do_transfer(rng, tree, alive, gen, kd, t, transfer_extent, transfer_to, sel
             child_of[b.copy] = new_copy()
     transferred = tuple((b.copy, child_of[b.copy], b.source, b.start, b.end) for b in arc)
     xfers = [Block(b.source, b.start, b.end, b.strand, child_of[b.copy], b.gene) for b in arc]
+    if replacement > 0.0:
+        # Replacing: the arc lands on the recipient's own copy of the same stretch and overwrites it
+        # — a transfer placed where the homologue sits, and a loss of that homologue, as one event.
+        # Looked for only when replacement is on, so a run without it takes not one draw more.
+        stretches = _homologous_stretches(rgenome, arc, inserted)
+        # one Bernoulli draw says whether a homologue that was found is overwritten, drawn only
+        # strictly between 0 and 1, so a run at 1 is not one draw longer than it needs to be
+        replaces = bool(stretches) and (replacement >= 1.0 or float(rng.random()) < replacement)
+        if stretches and tally is not None:
+            tally.found += 1
+        if replaces:
+            rchrom, lo, length, flipped = stretches[int(rng.integers(len(stretches)))]
+            span = rchrom._arc_range(lo, length, used=used)          # splits at both ends
+            qa, qz = span if span is not None else (0, 0)
+            gone = rchrom.blocks[qa:qz]
+            # a chromosome is never left without a gene, the rule every removal here keeps
+            keeps_one = (not rchrom.n_genes or any(b.is_gene for b in xfers)
+                         or any(b.is_gene for b in rchrom.blocks[:qa] + rchrom.blocks[qz:]))
+            if gone and keeps_one:
+                if flipped:                      # the homologue reads the other way: so does the arc
+                    xfers = [Block(b.source, b.start, b.end, -b.strand, b.copy, b.gene)
+                             for b in reversed(xfers)]
+                rchrom.blocks[qa:qz] = xfers
+                if tally is not None:
+                    tally.replaced += 1
+                events.append(Transfer(t, donor, recipient, transferred, tuple(used),
+                                       tuple((b.copy, b.source, b.start, b.end) for b in gone)))
+                return sum(b.length for b in arc) - sum(b.length for b in gone)
     rchrom = rgenome.chromosomes[int(rng.integers(len(rgenome.chromosomes)))]
     p = rchrom._pick_legal_cut(rng)                     # arrive at a legal spot on the recipient
     if p is None:
@@ -2223,7 +2390,8 @@ def _do_deletion(g, node_id, t, length, rng, deletions) -> int:
     return -sum(end - beg for (_cp, _src, beg, end) in gone)
 
 
-def _do_insertion(g, node_id, t, length, rng, events, new_source, new_copy) -> int:
+def _do_insertion(g, node_id, t, length, rng, events, new_source, new_copy,
+                  inserted: "set[int] | None" = None) -> int:
     """Insert a run of ``length`` bp of **novel spacer** at a legal position of a length-weighted
     chromosome — the indel twin of `_do_deletion()`, and `_do_origination()` without the gene.
 
@@ -2236,6 +2404,8 @@ def _do_insertion(g, node_id, t, length, rng, events, new_source, new_copy) -> i
         return 0
     chrom, at = spot
     src, cp = new_source(), new_copy()
+    if inserted is not None:                 # so a replacing transfer knows this spacer for what it is
+        inserted.add(src)
     used: list = []
     chrom.originate(at, length, src, cp, 0, indel=True, used=used)   # family 0: spacer, not a gene
     events.append(Origination(t, node_id, chrom.id, cp, src, 0, length, kind="insertion",
@@ -2516,7 +2686,8 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
                                 deletion=0.0, deletion_extent=5.0,
                                 insertion=0.0, insertion_extent=5.0, duplication=0.0,
                                 duplication_extent=50.0, transfer=0.0, transfer_extent=50.0,
-                                transfer_to="uniform", self_transfer=False, origination=0.0,
+                                transfer_to="uniform", replacement=0.0, self_transfer=False,
+                                origination=0.0,
                                 origination_extent=50.0, fission=0.0, fusion=0.0,
                                 chromosome_origination=0.0, chromosome_loss=0.0, chromosomes=1,
                                 root_length=1000, topology="circular", genes=0, gene_length=100,
@@ -2554,8 +2725,9 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     - ``transfer`` (**per lineage**) copies a geometric-length (mean ``transfer_extent``) arc into a
       **contemporaneous recipient** (``transfer_to``: ``"uniform"``, ``"distance"`` / a `Distance`,
       ``Clades({...}, Between({...}))`` or ``Recipients().weighted_by(driver, mapping)`` — see below;
-      ``self_transfer`` allows the donor itself) — a horizontal *birth*, additive (the donor keeps its
-      copy). This is what needs the global timeline.
+      ``self_transfer`` allows the donor itself) — a horizontal *birth*: the donor keeps its copy,
+      and the recipient gains one or, under ``replacement``, has its own overwritten. This is what
+      needs the global timeline.
     - ``origination`` (**per lineage**) lays down a **new gene** on a fresh source (geometric length,
       mean ``origination_extent``) — a *birth* of a wholly new family, indivisible from birth.
     - ``fission`` (**per chromosome**) splits a chromosome in two (a **bifurcation**); ``fusion``
@@ -2575,7 +2747,19 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     are per chromosome), so a transfer couples two contemporaries. With loss, the strong invariant
     weakens: every node carries a **subset** of the initial sequence (each ancestral position at most
     once, monotonically down every path); origination further adds fresh sources beyond the root.
-    Deterministic given ``seed``. (Transfer is always additive.)
+    Deterministic given ``seed``.
+
+    ``replacement`` sets the probability from 0 to 1, as at the family resolution, defaulting to 0,
+    with ``True`` meaning 1 and ``False`` meaning 0. With ``--resolution nucleotide``, use
+    ``--replacement`` on the command line, where ``--replacement`` alone means 1. A replacing
+    transfer overwrites the recipient's homologue with the donor's stretch, reflecting bacterial DNA
+    exchange between close relatives by homologous recombination. The homologue spans both donor end
+    bases in the recipient, in matching order, in the donor's orientation or with the whole stretch
+    flipped. Missing end bases, rearranged end base order, or intervening DNA from elsewhere cause
+    additive transfer, but a replacing transfer overwrites indel spacer too. When the recipient
+    holds the stretch twice, the transfer picks one homologue at random. Each transfer with a
+    homologue draws once, overwriting it with probability ``replacement`` and adding the stretch
+    otherwise.
 
     **Driving out of the genome.** A gene declared by a GFF is named, and a named gene answers *is it
     in this lineage, right now?* — ``result.presence("dnaA")``, the driver the other two resolutions
@@ -2682,6 +2866,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     # who receives, validated in the one place all three resolutions share (SPEC §5): the mapping's
     # numbers are weights over the candidate recipients, never a rate multiplier
     transfer_to = resolve_transfer_to(transfer_to)
+    replacement = resolve_replacement(replacement)
     if isinstance(genes, bool) or not isinstance(genes, int) or genes < 0:
         raise ValueError(f"genes must be a non-negative integer, got {genes!r}")
     if genes and (isinstance(gene_length, bool) or not isinstance(gene_length, int) or gene_length < 1):
@@ -2802,6 +2987,10 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     genomes: dict[int, NucleotideGenome] = {}
     events: list[Origination | Loss | Duplication | Transfer | Speciation] = []
     deletions: list[Deletion] = []                      # the indel log: extent-changing, no genealogy
+    # what a replacing transfer needs beside the genomes: a count of what it found and did, and the
+    # sources indels made, whose spacer does not stand between an arc and its homologue
+    replacements = ReplacementTally() if replacement > 0.0 else None
+    inserted: set[int] = set()
     rearrangements: list[Inversion | Translocation | Transposition] = []
     chromosome_events: list[ChromosomeEvent] = []
     root = tree.nodes[tree.root]
@@ -3013,7 +3202,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
                 elif r < b_ins:
                     k = _pick("insertion")
                     total_length += _do_insertion(gen[k], alive[k], t, _ext_draw("insertion_extent", k),
-                                                  rng, events, new_source, new_copy)
+                                                  rng, events, new_source, new_copy, inserted)
                 elif r < b_dup:
                     k = _pick("duplication")
                     total_length += _do_duplication(gen[k], alive[k], t, _ext("duplication_extent", k),
@@ -3022,7 +3211,8 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
                     kd = _pick("transfer")
                     total_length += _do_transfer(rng, tree, alive, gen, kd, t, _ext("transfer_extent", kd),
                                                  transfer_to, self_transfer, depth, events, new_copy,
-                                                 to_traj, group_of)
+                                                 to_traj, group_of, replacement, replacements,
+                                                 inserted)
                 elif r < b_org:
                     k = _pick("origination")            # per lineage; weighted when driven
                     total_length += _do_origination(gen[k], alive[k], t, _ext("origination_extent", k),
@@ -3073,7 +3263,9 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     return NucleotideGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed,
                                    gene_spans, gene_names, module_map,
                                    gene_strands=gene_strands, initial_genome=initial_genome,
-                                   initial_sequence=initial_sequence, deletions=deletions)
+                                   initial_sequence=initial_sequence, deletions=deletions,
+                                   replacements=(replacements.counts() if replacements is not None
+                                                 else None))
 
 
 # --- the gene-tree recovery: root partition -> per-block genealogy -> one tree per block ----------
@@ -3245,6 +3437,22 @@ def _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs
         for (cp, src, x, y) in (e.lost if isinstance(e, Loss) else e.deleted):
             if src == s and overlaps(x, y) and e.time > end_of.get(cp, -math.inf):
                 end_of[cp] = e.time
+    # A replacing transfer removes the recipient's own copy as it lands: a death like a loss's, and
+    # also half of the transfer. `overwritten` keeps the two together — for each arriving child, the
+    # resident copy it overwrote on this block — so the transfer's rows can name the gene that died
+    # (`GeneEdge.replaced`) rather than leave a reader to pair them on a shared timestamp.
+    overwritten: dict[int, int] = {}
+    for e in transfers:
+        if not e.replaced:
+            continue
+        residents = [cp for (cp, src, x, y) in e.replaced if src == s and overlaps(x, y)]
+        for cp in residents:
+            if e.time > end_of.get(cp, -math.inf):
+                end_of[cp] = e.time
+        if residents:
+            for (_pc, cc, src, x, y) in e.transferred:
+                if src == s and overlaps(x, y):
+                    overwritten.setdefault(cc, residents[0])
     loss_of = (end_of if carried is None else
                {cp: t for cp, t in end_of.items() if (s, a, b, cp) not in carried})
     for e in root_origs:
@@ -3270,10 +3478,16 @@ def _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs
     seg_in = {c: new_seg() for c in order}
     for e in root_origs:
         out.append(GeneEdge(e.time, "origination", e.lineage, fam, seg_in[e.copy]))
+    # the rows of each replacing transfer, to be given the gene they overwrote once every ladder
+    # has been walked — the resident's last gene is not known until its own ladder has
+    replacing: list[tuple[int, int, float]] = []           # (index of the first of its two rows, resident copy, time)
+    died_as: dict[int, int] = {}                            # copy lineage -> the gene it died as
     for c in order:
         prev = seg_in[c]
         for (t, cc, kind) in sorted(spawns.get(c, ())):    # ladder: each rung a bifurcation (dup or transfer)
             nxt = new_seg()
+            if kind == "transfer" and cc in overwritten:
+                replacing.append((len(out), overwritten[cc], t))
             # A transfer is a horizontal edge, so both its rows name the branch the material left, and
             # the arriving row alone names where the new copy is born — the same contract the family
             # resolution writes, because this is the same table.
@@ -3290,6 +3504,7 @@ def _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs
         # dropped so the assembly's guard can tell "died here" from "never existed".
         tip_of[(fam, c)] = None if c in loss_of else prev
         if c in loss_of:                                   # a death (dead leaf)
+            died_as[c] = prev
             out.append(GeneEdge(loss_of[c], "loss", species[c], fam, prev))
         elif c in specs:                                   # a bifurcation into the daughter species
             pnode = tree.nodes[specs[c].lineage]
@@ -3298,6 +3513,12 @@ def _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs
                     out.append(GeneEdge(specs[c].time, "speciation", pnode.children[i], fam,
                                      seg_in[d], prev))
         # else: prev survives to an extant/extinct leaf — gene_trees_from_edges tags it by species fate
+    for at, resident, t in replacing:
+        # named only where the resident really died of this transfer: with indels a copy can keep
+        # part of the block the arc did not cover, and then it lives on and nothing was replaced here
+        if loss_of.get(resident) == t and resident in died_as:
+            out[at] = replace(out[at], replaced=died_as[resident])
+            out[at + 1] = replace(out[at + 1], replaced=died_as[resident])
 
 
 def _recover_gene_trees(result, *, every_block: bool = False

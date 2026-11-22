@@ -91,6 +91,20 @@ n5, chromosome 5
 
 Both leaves still carry all three genes, and both are still 3000 bp. In `n2` an inversion covered gene 2, which now reads on the `−` strand with the spacer around it reversed; in `n5` a different inversion covered gene 3 instead, taking the spacer on either side of it with it. The coordinates are what make this readable: every block still names where it came from on the initial sequence, so `[600, 1000)` is gene 1 wherever it turns up and whichever way it points.
 
+## Replacing transfers
+
+An additive transfer inserts the donor's stretch at a random legal position in the recipient. The additive transfer increases the genome's length. A replacing transfer overwrites the homologue, so the recipient holds the donor's stretch in place of its own. Bacteria use this form of homologous recombination to exchange DNA with close relatives.
+
+```python
+tree = species.simulate_species_tree(birth=1.0, death=0.0, n_extant=8, seed=1)
+g = genomes.simulate_genomes_nucleotide(
+    tree, root_length=20000, genes=10, gene_length=1000,
+    transfer=1.0, transfer_extent=1500, transfer_to="distance",
+    replacement=1.0, seed=1)
+```
+
+The homologue includes both donor end bases and intervening DNA, matching their order in the donor's orientation or with the whole stretch flipped. A missing end base, rearranged end base order, or DNA from elsewhere between the end bases makes the transfer additive. Spacer from an insertion (an indel) permits replacement, which overwrites that spacer too. With additive transfers in this example, two genomes end with 12 gene copies and 24,221 bases. With `replacement=1.0`, every genome keeps 10 single-copy genes and 20,000 bases.
+
 ## The initial genome
 
 The **initial genome**, the genome the run starts from at time 0 before any event, is declared in one of two ways. (It is not the same as the genome at the root *node*: the root branch is real simulated time, so that one already carries stem events. See `.initial_genome` in Appendix B.)

@@ -9,6 +9,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- Added `replacement=` and `--replacement` at nucleotide resolution for replacing transfers. A replacing transfer overwrites the recipient's homologue with the donor's stretch. A replacing transfer carries everything inside the donor's stretch and gives the recipient the donor's length. With `self_transfer=True`, a transfer uses another homologue in the same genome or stays additive. The sequence level needs no option and evolves a replaced stretch from the donor's sequence at the moment of transfer. Runs with `replacement=0` remain unchanged byte for byte. A transfer rate that falls with sequence divergence remains unbuilt, while `transfer_to="distance"` uses time. (#500)
+
 ## [0.61.0] - 2026-11-22
 
 ### Added

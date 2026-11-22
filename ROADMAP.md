@@ -48,7 +48,7 @@ the chromosome network; and founding a nucleotide run from a real annotation (`g
 | Gene conversion | Ectopic conversion between copies of a family, with a bias toward the older copy. | considering |
 | GC-biased gene conversion | Conversion resolved toward G and C, moving base composition — the model that connects gene conversion here with composition change at the sequence level. | considering |
 | Pseudogenization | A loss at the nucleotide resolution that demotes the gene to intergene and keeps its sequence. Today a loss deletes. | considering |
-| Replacing transfer at the nucleotide resolution | A nucleotide transfer is always additive today. | considering |
+| Transfer rate that falls with divergence | A transfer rate that falls with sequence divergence between donor and recipient. `transfer_to="distance"` gives the version based on time. | considering |
 | Gene-order files at the ordered resolution | The nucleotide resolution writes GFF and BED; the ordered resolution writes `gene_order.tsv` only. | considering |
 | A graph file for the chromosome network | `chromosome_events.tsv` holds the network as an edge list; a standard graph format (GraphML, DOT) would open it to graph tools. | considering |
 | Random rate variation on genome rates | A drawn per-lineage or per-chromosome factor, and inherited clade drift. Today a genome rate varies by time, by driver, or by family. | considering |

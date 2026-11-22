@@ -384,8 +384,12 @@ family resolution, [one row per event](#one-row-per-event), so one reader serves
 resolutions and `zombi2 tools` works here unchanged. `family` is the declared gene (else the
 recovered root-block), and the copy in each token is a **gene** id, the one the gene trees,
 alignments and homology tables use. It is derived onto the root-block partition, where a copy either
-covers a block in full or does not touch it, which is what makes a duplication a bifurcation here. A
-nucleotide transfer is always additive, so `transfer_replacing` cannot appear.
+covers a block in full or does not touch it, which is what makes a duplication a bifurcation here. At
+nucleotide resolution, `genome_events.tsv` records a replacing transfer as one `transfer_replacing`
+row and an additive transfer as `transfer_additive`. The recipient's overwritten gene ends in a loss
+at the transfer in the gene tree. The arriving gene becomes a new copy on the recipient's branch. At
+nucleotide resolution, `genome_summary.json` includes `transfers` with `found_resident`, `replaced`,
+and `added_beside`, except when `replacement` is 0.
 
 **`block_events.tsv`**: `time` · `kind` · `parents` · `children` · `chromosome` · `source` ·
 `start` · `end` · `cuts`; copy lineages and chromosomes are named as everywhere else. There is one
@@ -393,7 +397,10 @@ row per ancestral interval an event touched, not one row per event, so an event 
 blocks writes several rows sharing a `time` and `kind`, and a duplication starts a child without
 ending its parent (the parent still covers the rest of its extent). That is why the genealogy above
 is a separate table: this shape suits sequence and not a gene tree. Kinds are `initial` ·
-`origination` · `insertion` · `duplication` · `deletion` · `loss` · `transfer` · `speciation`, where
+`origination` · `insertion` · `duplication` · `deletion` · `loss` · `transfer` ·
+`transfer_replacing` · `speciation`. In `block_events.tsv`, `transfer_replacing` rows with a child
+describe arriving DNA, while rows without a child describe the recipient's overwritten DNA. An
+additive transfer keeps the kind `transfer`. Among the other kinds,
 `initial` is the starting genome laid down at time 0, one row per replicon, and `insertion` /
 `deletion` are the **indels**: `insertion` is novel spacer on a fresh source, a root like an
 origination but carrying no gene family, and `deletion` removes material without ending a copy
