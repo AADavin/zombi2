@@ -19,8 +19,13 @@ evidence that never existed. So:
   split is not in the extant species tree at all, so there is nothing to lose the gene on;
 - a **duplication** whose second copy died is suppressed. Both copies sat on one branch, so the
   extant data shows one copy and no method could ever say otherwise;
-- a **transfer** whose donor side died is suppressed, which is what leaves the arriving copy looking
-  as though it appeared from nowhere — see ``entered_by`` below;
+- a **transfer** stays on the donor branch when it is a visible branch and only the donor's copy
+  dies. The projection writes two children: a ``loss`` on the donor branch and the copy that left.
+  That ``loss`` stands for however the donor's copy died;
+- a **transfer** disappears from the projection when the donor's copy dies and the copy that left
+  lands back on the donor branch. One copy occupies one branch;
+- a **transfer** from a donor branch that is not a visible branch disappears from the projection
+  when the donor's copy dies. The copy that left then looks as though it appeared from nowhere;
 - a surviving transfer's **donor** is the nearest visible ancestor of the branch it really left. That
   branch had already split by then, so the donation is attributed to a branch that no longer existed
   at that instant. It is where an inference method would put it, which is the honest place for it.
@@ -163,9 +168,27 @@ def _project(node: GeneNode, tree: Tree, image: dict[int, int],
             continue
         if len(alive) == 1:
             (c, built, came), = alive
-            # this edge is horizontal if the survivor is the copy that left, or if it already was
-            horizontal = here if c is moved else came
             dead = [d for d, b, _ in live if b is None]
+            if c is moved and n.species in image:
+                # the copy left a branch the extant tree names, and only the donor's own copy died
+                # there. The donation is visible where it happened, so the transfer stays on its
+                # branch with a loss beside the copy that left — one loss, as at a speciation,
+                # however the donor's copy went on to die. Any ghost hop the copy made on its way is
+                # absorbed: its real donor is this branch. The one exception is a copy that landed
+                # back on the branch it left, by a self-transfer or through a lineage nobody can see:
+                # like a dead duplicate, that leaves one copy on one branch and nothing to see.
+                if built.species == here:
+                    done[id(n)] = (built, None)
+                else:
+                    counter[0] += len(dead)
+                    out = GeneNode(n.kind, here, n.time, n.copy)
+                    # the donor's side first, as the engine logs it
+                    out.children = [_loss(here, d.time, d.copy) for d in dead] + [built]
+                    done[id(n)] = (out, None)
+                continue
+            # the donor's branch is invisible (or the survivor is not the copy that left): this edge
+            # is horizontal if the survivor is the copy that left, or if it already was
+            horizontal = here if c is moved else came
             # a loss is visible only where the abandoned branch is one the extant tree names and is
             # not the branch its sibling still sits on: a dead duplicate leaves nothing to see, and a
             # dead donor branch is not in the extant tree at all
