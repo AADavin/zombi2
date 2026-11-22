@@ -3214,14 +3214,20 @@ def _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs
     # Its child is a copy of this block all the same, carrying the part it was given; which part is
     # `assembly()`'s business, not the tree's. Without indels every event breakpoint is in the
     # partition, so an event covers a block or misses it and the two tests agree.
+    #
+    # One child per event, however many rows name it. An event writes a row per `Block` in its arc,
+    # and an indel leaves a root block as several of those, so a duplication of a block that a
+    # deletion has cut names the same parent and child once for each piece. That is one birth, not
+    # one per piece: counted per row, the child was hung on its parent's ladder again for every
+    # piece, and the tree grew a leaf no genome holds.
     for e in dups:
         for (pc, cc, src, x, y) in e.copied:
-            if src == s and overlaps(x, y):
+            if src == s and overlaps(x, y) and cc not in species:
                 spawns[pc].append((e.time, cc, "duplication"))
                 species[cc] = e.lineage                    # the tandem copy stays on the donor branch
     for e in transfers:
         for (pc, cc, src, x, y) in e.transferred:
-            if src == s and overlaps(x, y):
+            if src == s and overlaps(x, y) and cc not in species:
                 spawns[pc].append((e.time, cc, "transfer"))
                 species[cc] = e.recipient                  # the transferred copy lands on the recipient
     # When a copy lineage ends on this block. Two questions, kept apart: *did* it end, and *when*.
