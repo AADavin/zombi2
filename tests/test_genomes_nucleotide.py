@@ -2404,6 +2404,39 @@ def test_an_indel_run_round_trips_through_the_files_it_wrote(tmp_path):
         assert back.assembly(nid) == g.assembly(nid)
 
 
+def test_under_indels_a_tree_has_one_leaf_per_copy_a_tip_holds():
+    # `test_recovered_extant_leaves_match_observed_copies`, with indels on. An event writes one row
+    # per `Block` in its arc, and a block that a deletion has cut is several of those, so a
+    # duplication or a transfer of it names the same child once per piece. That is one birth. Read
+    # as one per piece, the child hung on its parent's ladder again for every piece, and the tree
+    # grew leaves no genome holds — in the gene trees, and in the block trees a sequence run
+    # evolves down.
+    in_pieces = 0
+    for seed in range(1, 7):
+        sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=5, seed=seed)
+        g = simulate_genomes_nucleotide(
+            sp, root_length=6000, genes=4, gene_length=1000, duplication=2.0, duplication_extent=1500,
+            transfer=2.0, transfer_extent=1500, loss=1.0, loss_extent=1200, deletion=6.0,
+            deletion_extent=20, insertion=3.0, insertion_extent=10, seed=seed)
+        for e in g.events:
+            rows = (e.copied if isinstance(e, Duplication)
+                    else e.transferred if isinstance(e, Transfer) else ())
+            births = [(pc, cc, src) for (pc, cc, src, _x, _y) in rows]
+            in_pieces += len(births) != len(set(births))
+        for trees, spans in ((g.gene_trees, g.gene_spans),
+                             (g.block_trees, dict(enumerate(g.root_blocks)))):
+            for leaf in g.complete_tree.extant_leaves():
+                blocks = [b for chrom in g.node_genomes[leaf].chromosomes for b in chrom.blocks]
+                for key, tree in trees.items():
+                    src, lo, hi = spans[key]
+                    held = {b.copy for b in blocks
+                            if b.source == src and lo < b.end and b.start < hi}
+                    grown = sum(1 for t in _tips(tree.complete)
+                                if t.kind == "extant" and t.species == leaf)
+                    assert grown == len(held)
+    assert in_pieces > 10, "no event copied a block in pieces, so this proves nothing"
+
+
 def test_the_initial_genome_assembles_under_indels_too():
     g = _deletion_run(deletion=80.0, insertion=80.0, insertion_extent=5.0)
     assert g.indels > 100
