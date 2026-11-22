@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.59.0] - 2026-11-22
+
 ### Changed
 
 - GFF input now preserves overlapping genes by default, with genes that overlap sharing one block. Previously, overlaps raised an error unless trimming was enabled. `trim_overlaps=True` keeps the old trimming behaviour. Use `gene_span_in_block(family)` to locate a gene within its block's alignment. A run without overlapping genes remains unchanged, byte for byte. (#495)
