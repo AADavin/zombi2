@@ -144,6 +144,14 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
                         "no base (\"PerSite().varying_among('lineages', LogNormal(0.0, 0.3))\") and "
                         "this sets its scale")
 
+    g = p.add_argument_group("family inputs", "set founding sequences and multipliers for families")
+    g.add_argument("--founding", default=None, metavar="FASTA",
+                   help="[family/ordered] give each listed family its founding sequence from a FASTA "
+                        "file, using numbers or `fam<N>` to identify families")
+    g.add_argument("--family-multipliers", default=None, metavar="TSV", dest="family_multipliers",
+                   help="[family/ordered] give each listed family its positive multiplier from a TSV "
+                        "file, using numbers or `fam<N>` to identify families")
+
     g = p.add_argument_group("outputs")
     # `genomes` and `initial_genome` exist only for a nucleotide handoff, which is the only run
     # with coordinates to lay a genome out in; asking for one otherwise writes nothing rather than
@@ -306,6 +314,13 @@ def run(args, parser):
             parser.error("--length does not apply to a nucleotide genome run: every block carries "
                          "its own length in bp, so one number here would contradict the coordinates "
                          "the genomes run wrote. Drop it — the genome sets the lengths.")
+        for flag, value in (("--founding", args.founding),
+                            ("--family-multipliers", args.family_multipliers)):
+            if value is not None:
+                parser.error(f"{flag} is given per gene family, and this handoff is a nucleotide "
+                             "genome run, which evolves blocks of a genome rather than families. "
+                             "Its starting DNA is the genome level's: zombi2 genomes --resolution "
+                             "nucleotide --gff … --fasta …")
         extra = dict(intergene_speed=args.intergene_speed)
         if args.intergene_model is not None:
             extra["intergene_model"] = _NUCLEOTIDE_CTORS[args.intergene_model]()
@@ -328,6 +343,10 @@ def run(args, parser):
                              "spacer. This handoff has gene families only, so there is nothing for a "
                              "second model to evolve.")
         extra = dict(length=1000 if args.length is None else args.length)
+        if args.founding is not None:
+            extra["founding"] = args.founding
+        if args.family_multipliers is not None:
+            extra["family_multipliers"] = args.family_multipliers
 
     model = _build_model(args)
 
@@ -421,8 +440,12 @@ def run(args, parser):
                    f"{len(result.node_genomes)} genomes (every node), {model.name} genes / {spacer} spacer at "
                    f"{args.intergene_speed:g}x, {clock}{realised}")
     else:
+        given = "".join(f", {what} from {os.path.basename(path)}"
+                        for what, path in (("founding sequences", args.founding),
+                                           ("family multipliers", args.family_multipliers))
+                        if path is not None)
         summary = (f"{n_seqs} sequences across {n_families} gene families, {model.name} "
-                   f"{extra['length']} sites, {clock}{realised}")
+                   f"{extra['length']} sites, {clock}{given}{realised}")
     print_wrote(args.run, summary, t0)
     if identity is not None and _saturation_signal(identity, model) < _SATURATED_BELOW:
         # the floor makes the identity readable: it is where unrelated sequences already sit under
@@ -443,6 +466,7 @@ def run(args, parser):
                       inputs=input_digests(tree_path,
                                            os.path.join(handoff, "genome_events.tsv"),
                                            os.path.join(handoff, "blocks.tsv"),
+                                           args.founding, args.family_multipliers,
                                            args.substitution))
     signpost(args, write_run_report(args.run), out)   # every file it wrote, then the run report
     return 0

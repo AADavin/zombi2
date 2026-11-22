@@ -60,6 +60,7 @@ from __future__ import annotations
 import math
 import os
 import pathlib
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
@@ -70,7 +71,8 @@ import numpy as np
 from ..genomes import FamilyGenomesResult
 from ..genomes.events import gene_label
 from ..genomes.gene_trees import GeneNode, GeneTree
-from ..genomes.multipliers import SEQUENCE_TARGETS, multipliers_of, multipliers_tsv
+from ..genomes.multipliers import (SEQUENCE_TARGETS, multipliers_from_tsv, multipliers_of,
+                                   multipliers_tsv)
 from ..params.conditioned import check_mapping_fires, driven_mods, names_a_live_level, resolve_driver
 from ..rng import resolve_seed, seed_sequence, stream
 from ..params.mapping import Between
@@ -1282,6 +1284,15 @@ def _mixture_layout(model, length: int, rng) -> "tuple[tuple, _MixtureLayout]":
                                  tuple(int(j) for j in order), inverse)
 
 
+def _sized_by(parts, seed_states):
+    """``parts`` for a family that was **given** its founding sequence: the one model, over as many
+    sites as the sequence has. Several partitions already fix the length, and `_given_founding` has
+    checked the sequence against it, so they pass through — as does a family that draws."""
+    if seed_states is None or parts is None or len(parts) != 1:
+        return parts
+    return ((parts[0][0], len(seed_states)),)
+
+
 def _unshuffle(aln: dict, anc: dict, fnd: str, inverse: np.ndarray):
     """Put a family's columns back in site order after a `_mixture_layout`."""
     def back(seq: str) -> str:
@@ -1661,6 +1672,158 @@ def _simulate_loop(genomes, genes, *, joint: bool, seed, record: bool = False,
         tuple(s.name for s in specs), events)
 
 
+#: the draw among families, under a name the entry point's own ``family_multipliers=`` cannot hide
+_draw_family_multipliers = family_multipliers
+
+
+def _family_id(key, genomes, what: str) -> int:
+    """The family a key of ``founding=`` or ``family_multipliers=`` names.
+
+    Three spellings, because there are three places a key comes from: the **name** a genome run
+    declared (``families=[family("rpoB")]``), the **number** every result is keyed by, and
+    ``fam<N>``, which is how the files a run writes spell that number. A declared name wins, so a
+    family somebody called ``fam3`` is still reachable."""
+    declared = getattr(genomes, "family_names", {}) or {}
+    if isinstance(key, str):
+        if key in declared:
+            return declared[key]
+        number = re.fullmatch(r"(?:fam)?(\d+)", key.strip())
+        if number:
+            return int(number.group(1))
+    elif isinstance(key, (int, np.integer)) and not isinstance(key, bool):
+        return int(key)
+    raise ValueError(
+        f"{what} is keyed by family: a declared name, a family number, or fam<N> as the files a "
+        f"run writes spell it. Got {key!r}"
+        + (f"; this genome run declared {sorted(declared)}." if declared else
+           "; this genome run declared no names, so use the numbers."))
+
+
+def _fasta_records(path) -> dict[str, str]:
+    """``{id: sequence}`` from a FASTA in any alphabet: the id is the header's first word, and the
+    lines under it are joined. (`zombi2.genomes.gff.read_fasta` is the genome level's, and takes
+    DNA alone.) Letters are checked later, against the model, by `_given_founding`."""
+    records: dict[str, list[str]] = {}
+    name = None
+    for n, raw in enumerate(pathlib.Path(path).read_text(encoding="utf-8").splitlines(), 1):
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith(">"):
+            words = line[1:].split()
+            if not words:
+                raise ValueError(f"{path}, line {n}: a FASTA record needs a name after '>'")
+            name = words[0]
+            if name in records:
+                raise ValueError(f"{path}: record {name!r} appears twice")
+            records[name] = []
+        elif name is None:
+            raise ValueError(f"{path}, line {n}: sequence before the first '>' header")
+        else:
+            records[name].append(line)
+    return {name: "".join(lines) for name, lines in records.items()}
+
+
+def _stray_families(what: str, given, gene_trees) -> None:
+    """Refuse a key that names a family this run does not evolve — the silence a typo would
+    otherwise buy, as for ``profiles``."""
+    stray = sorted(set(given) - set(gene_trees))
+    if stray:
+        raise ValueError(
+            f"{what} names {len(stray)} family/families this run does not have: "
+            f"{', '.join(map(str, stray[:5]))}{' …' if len(stray) > 5 else ''}. The run has "
+            f"{len(gene_trees)} of them, numbered {min(gene_trees)}…{max(gene_trees)}. An entry for "
+            f"a family that is not here applies to nothing.")
+
+
+def _given_founding(founding, genomes, gene_trees, parts) -> "dict[int, np.ndarray]":
+    """``founding=`` as ``{family: states}``: the sequence each listed family **starts from**,
+    encoded in the model's alphabet.
+
+    ``founding`` is a ``{family: sequence}`` mapping or the path of a FASTA — the one a run writes
+    as ``sequences_founding.fasta`` reads straight back in. A given sequence sits where a drawn one
+    would: at the family's origination, which for a family of the initial genome is time 0. Its
+    length is the family's length. With several partitions the lengths are already fixed, so the
+    sequence has to be exactly as long as they are together."""
+    if isinstance(founding, (str, os.PathLike)):
+        records: Mapping = _fasta_records(founding)
+    elif isinstance(founding, Mapping):
+        records = founding
+    else:
+        raise TypeError(
+            f"founding= takes {{family: sequence}} or the path of a FASTA with one record per "
+            f"family, got {type(founding).__name__}.")
+    if not records:
+        raise ValueError("founding= is empty, so it starts no family from a given sequence. Leave "
+                         "it off to draw every founding sequence.")
+    alphabet = parts[0][0].alphabet
+    fixed = sum(int(n) for _m, n in parts) if len(parts) > 1 else None
+    out: dict[int, np.ndarray] = {}
+    for key, seq in records.items():
+        fam = _family_id(key, genomes, "founding=")
+        if fam in out:
+            raise ValueError(f"founding= names family {fam} twice (once as {key!r}).")
+        if not isinstance(seq, str) or not seq:
+            raise ValueError(f"founding= gives family {fam} no sequence: {seq!r}.")
+        try:
+            out[fam] = encode(seq.upper(), alphabet)
+        except ValueError as e:
+            raise ValueError(f"founding=, family {fam}: {e}. A given sequence is written in the "
+                             f"alphabet the model evolves it in.") from None
+        if fixed is not None and len(seq) != fixed:
+            raise ValueError(
+                f"founding=, family {fam}: the sequence has {len(seq)} sites and the partitions "
+                f"add up to {fixed}. Partitions fix how many sites a family has, so a given "
+                f"sequence has to be exactly that long.")
+    _stray_families("founding=", out, gene_trees)
+    return out
+
+
+def _given_multipliers(table, genomes, gene_trees) -> "dict[int, float]":
+    """``family_multipliers=`` as ``{family: multiplier}``: the speed each listed family runs at,
+    relative to the run's rate — given, where ``varying_among('families', …)`` draws it.
+
+    ``table`` is ``{family: multiplier}``, the ``{family: {"substitution": multiplier}}`` a result
+    carries as ``family_multipliers``, or the path of the ``family_multipliers.tsv`` a run writes.
+    So the table one run wrote is the table the next can take."""
+    if isinstance(table, (str, os.PathLike)):
+        rows: Mapping = multipliers_from_tsv(pathlib.Path(table).read_text(encoding="utf-8"))
+    elif isinstance(table, Mapping):
+        rows = table
+    else:
+        raise TypeError(
+            f"family_multipliers= takes {{family: multiplier}} or the path of a "
+            f"family_multipliers.tsv, got {type(table).__name__}.")
+    out: dict[int, float] = {}
+    for key, value in rows.items():
+        fam = _family_id(key, genomes, "family_multipliers=")
+        if fam in out:
+            raise ValueError(f"family_multipliers= names family {fam} twice (once as {key!r}).")
+        if isinstance(value, Mapping):
+            value = value.get("substitution")
+        if value is None:                  # an empty cell: no number was given for this family
+            continue
+        if isinstance(value, bool) or not isinstance(value, (int, float, np.integer, np.floating)) \
+                or not math.isfinite(value) or value <= 0:
+            raise ValueError(
+                f"family_multipliers=, family {fam}: a multiplier is a positive number — 1 runs "
+                f"the family at the run's rate, 0.2 at a fifth of it. Got {value!r}.")
+        out[fam] = float(value)
+    if not out:
+        raise ValueError("family_multipliers= gives no family a multiplier. Leave it off to run "
+                         "every family at the run's rate.")
+    _stray_families("family_multipliers=", out, gene_trees)
+    return out
+
+
+def _with_given(drawn: "dict[int, float]", given: "dict[int, float]", gene_trees) -> "dict[int, float]":
+    """The multiplier every family runs at once some are given: a listed family takes its number,
+    and the others keep the one they drew — or 1, in a run that draws none."""
+    if not given:
+        return drawn
+    return {f: given.get(f, drawn.get(f, 1.0)) for f in sorted(gene_trees)}
+
+
 def _restrict_to(families, genomes) -> list[int]:
     """The family ids ``families=`` names, checked against what the genome run declared.
 
@@ -1691,7 +1854,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                        length: int | None = None, partitions=None, profiles=None, families=None,
                        intergene_model: SubstitutionModel | None = None, intergene_speed=3.0,
                        insertion=0.0, deletion=0.0, insertion_extent=3.0, deletion_extent=3.0,
-                       substitution=None, divergence=None, seed=None, parallel=False,
+                       substitution=None, divergence=None, founding=None,
+                       family_multipliers=None, seed=None, parallel=False,
                        stream_to=None, outputs=None, flat: bool = False, compact: bool = False,
                        bundle: "bool | None" = None,
                        genes=None,
@@ -1759,6 +1923,22 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     valid run — but it is a **different realisation** for the same seed, which is the price of asking
     what happened rather than only where it ended. A site is named by an id rather than a position,
     because a position moves with every insertion above it; see `zombi2.sequences._record`.
+
+    ``founding`` accepts a ``{family: sequence}`` dict or a FASTA file path with one record per
+    family. A listed family uses its sequence's length unless ``partitions`` fixes the length, which
+    the sequence must match. An unlisted family draws its founding sequence with ``length`` sites.
+    You can omit ``length`` when you list every family. Sequences must use the model's alphabet,
+    with lower case accepted. A given sequence sits at the family's origination. You cannot combine
+    ``founding`` with ``insertion``, ``deletion``, or ``profiles``.
+
+    ``family_multipliers`` accepts a ``{family: multiplier}`` dict, ``result.family_multipliers``,
+    or a path to ``family_multipliers.tsv``. Each listed family uses its given positive multiplier
+    throughout its life. A multiplier scales the run's substitution rate, with 1 preserving it and
+    0.2 giving a fifth of it. An unlisted family keeps its drawn multiplier when the rate draws one.
+    Otherwise, an unlisted family uses 1. Both ``result.family_multipliers`` and
+    ``family_multipliers.tsv`` then list every family of the run. In both arguments a family is
+    named by its declared name, its number, or ``fam<N>``, and neither applies to a nucleotide
+    genome run.
 
     ``families`` restricts the run to **named** families — ``families=["chaperone"]`` — instead of
     evolving every one. The names are the genome run's, declared there with
@@ -1879,7 +2059,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                                   ("profiles", profiles), ("families", families),
                                   ("substitution", substitution), ("divergence", divergence),
                                   ("intergene_model", intergene_model), ("stream_to", stream_to),
-                                  ("outputs", outputs))
+                                  ("outputs", outputs), ("founding", founding),
+                                  ("family_multipliers", family_multipliers))
                    if v is not None]
         offered += [n for n, v in (("insertion", insertion), ("deletion", deletion),
                                    ("parallel", parallel), ("compact", compact)) if v]
@@ -1907,6 +2088,26 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
             "indels change how many sites a lineage has, and partitions/profiles are written "
             "against a fixed site count — so a site's partition or profile would stop meaning "
             "anything the moment one fired. Use one or the other.")
+    if founding is not None and nucleotide:
+        raise ValueError(
+            "founding= gives a gene family its starting sequence, and a nucleotide genome run "
+            "evolves blocks of a genome rather than families. Its starting DNA is given where the "
+            "genome is: simulate_genomes_nucleotide(..., gff=..., fasta=...).")
+    if family_multipliers is not None and nucleotide:
+        raise ValueError(
+            "family_multipliers= gives each gene family its own speed, and a nucleotide genome "
+            "run evolves blocks: a gene, several genes that overlap, or a stretch of spacer. "
+            "There is no family there to give one to. Run the sequences on a family or ordered "
+            "genome run, where a family is a unit.")
+    if founding is not None and (insertion or deletion):
+        raise ValueError(
+            "founding= and indels are not read together yet: indels lay a family out over more "
+            "columns than it starts with, and a given sequence says nothing about the ones "
+            "inserted later. Drop the indels, or draw the founding sequences.")
+    if founding is not None and profiles is not None:
+        raise ValueError(
+            "founding= and profiles= both fix how many sites a family has — a profile carries one "
+            "row per site — and they are not read together yet. Use one or the other.")
     if record:
         # `record=` runs a different sampler — a forward Gillespie down each branch — so what it
         # cannot walk it refuses rather than quietly recording something else (SPEC §5).
@@ -2076,7 +2277,11 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         gene_trees = genomes.gene_trees
         if families is not None:
             gene_trees = {i: gene_trees[i] for i in _restrict_to(families, genomes)}
-        parts = _resolve_partitions(model, partitions, length)
+        # A family that is given its sequence takes its length from it, so `length=` is only for
+        # the families that still draw — and with none of those, it need not be given at all. The
+        # placeholder is never read: every family then brings its own length.
+        no_length = founding is not None and length is None and partitions is None
+        parts = _resolve_partitions(model, partitions, 1 if no_length else length)
         # A per-lineage model set is painted against THIS run's tree, once, before any family is
         # evolved — the same shape as a driven rate resolving its trajectory above. It is checked
         # here too: a label that names no lineage, or a lineage with no model, is a run that would
@@ -2088,6 +2293,19 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                 "spacer. A family or ordered run has gene families only, so there is nothing "
                 "for a second model to evolve.")
         per_block = None
+    given_founding: "dict[int, np.ndarray]" = {}
+    given_speed: "dict[int, float]" = {}
+    if founding is not None:
+        assert parts is not None
+        given_founding = _given_founding(founding, genomes, gene_trees, parts)
+        drawing = sorted(set(gene_trees) - set(given_founding))
+        if no_length and drawing:
+            raise ValueError(
+                f"length= is missing, and {len(drawing)} family/families of this run are not in "
+                f"founding= ({', '.join(map(str, drawing[:5]))}{' …' if len(drawing) > 5 else ''}). "
+                f"A family that is given no sequence draws one, and length= says how long.")
+    if family_multipliers is not None:
+        given_speed = _given_multipliers(family_multipliers, genomes, gene_trees)
     if divergence is not None:
         rate = _calibrate(substitution, divergence, genomes.complete_tree)
     else:
@@ -2221,7 +2439,9 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
             "an in-memory run pass it when you call result.write(compact=True).")
     alignments: dict[int, dict[str, str]] = {}
     ancestral: dict[int, dict[str, str]] = {}
-    founding: dict[int, str] = {}
+    # `founded`, not `founding`: that name is the argument — what the caller GAVE — and this is
+    # what every family started from, given or drawn, which is what the result reports
+    founded: dict[int, str] = {}
     phylograms: dict[int, dict[str, str | None]] = {}
     events: list = []                      # empty unless record=True; see `_record`
     seed = resolve_seed(seed)      # drawn if none was given, so either engine below records it
@@ -2238,7 +2458,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         clock = resolve_clock(clocks, driven, species_tree, gene_trees, rng)
         # After the clock and from the same generator, so a run with a clock and no family draw is
         # bit-identical to one from before the family draw existed — it takes no draw at all.
-        drawn = family_multipliers(fam_mods, gene_trees, rng)
+        drawn = _with_given(_draw_family_multipliers(fam_mods, gene_trees, rng), given_speed,
+                            gene_trees)
         # One transition-CDF cache per model, shared across every block that model evolves. Branch lengths
         # recur across blocks (a block passing straight through a species branch reuses its length), so a
         # run-wide cache builds a few hundred matrices where a per-block cache rebuilt tens of thousands.
@@ -2262,9 +2483,12 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                 f_parts, f_rate = parts, rate_base
                 if drawn:               # a draw among families: this family's own speed
                     f_rate = rate_base * drawn[family]
+                seed_states = given_founding.get(family)
+                f_parts = _sized_by(f_parts, seed_states)
             else:                       # a nucleotide block: its own length, and spacer runs faster
                 f_len, f_model, speed = per_block[family]
                 f_parts, f_rate = ((f_model, f_len),), rate_base * speed
+                seed_states = founding_seed[family]
             if family in site_profiles:          # a profile replaces the family's model, site by site
                 f_parts = site_profiles[family]
                 # `length` is rejected on a nucleotide run — every block carries its own — so the
@@ -2282,7 +2506,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                 # profile evolve as one block; the columns go back in site order below
                 assert f_parts is not None
                 f_parts, layout = _mixture_layout(mixture, f_parts[0][1], rng)
-            seed_states = None if per_block is None else founding_seed[family]
+                if seed_states is not None:     # a given sequence follows its sites into the layout
+                    seed_states = seed_states[np.asarray(layout.order, dtype=np.intp)]
             # Geometry first, letters second: which columns exist and who carries them is drawn over
             # the tree, and then the existing engine evolves that fixed width down it. Exact rather
             # than convenient — see `indels.draw_indel_history`.
@@ -2320,7 +2545,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                      "extant": _gene_newick(ext, names) if ext is not None else None}
             if sink is None:
                 alignments[family], ancestral[family] = aln, anc
-                founding[family], phylograms[family] = fnd, phylo
+                founded[family], phylograms[family] = fnd, phylo
             else:
                 sink.family(family, aln, anc, fnd, phylo,            # written and forgotten
                             None if layout is None else layout.profiles)
@@ -2338,10 +2563,11 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         # which worker took which family, or the run would stop being worker-count invariant.
         shared = np.random.default_rng(spawned[0])
         clock = resolve_clock(clocks, driven, species_tree, gene_trees, shared)
-        drawn = family_multipliers(fam_mods, gene_trees, shared)
-        alignments, ancestral, founding, phylograms, assignments = evolve_families(
+        drawn = _with_given(_draw_family_multipliers(fam_mods, gene_trees, shared), given_speed,
+                            gene_trees)
+        alignments, ancestral, founded, phylograms, assignments = evolve_families(
             gene_trees, per_block, model, intergene_model, length, rate_base, clock,
-            founding_seed if nucleotide else None, spawned[1:], workers, progress, names,
+            founding_seed if nucleotide else given_founding, spawned[1:], workers, progress, names,
             sink=None if sink is None else sink.family, partitions=parts, multipliers=drawn)
 
     events.sort(key=lambda e: e.time)      # one log, in time order, as every other level writes one
@@ -2392,7 +2618,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
             initial_genome[cid] = "".join(
                 piece if strand == 1 else piece.translate(_COMPLEMENT)[::-1]
                 for (block, strand, lo, hi) in pieces
-                for piece in (founding[block][lo:hi],))
+                for piece in (founded[block][lo:hi],))
 
     if sink is not None:
         sink.finish(species_phylogram, multipliers)
@@ -2407,7 +2633,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                 written.pop("ancestral_sequences", None)
             write_summary(pathlib.Path(stream_to) / "sequences_summary.json", written)
         return handle
-    return SequencesResult(alignments, ancestral, founding, phylograms, species_phylogram, seed,
+    return SequencesResult(alignments, ancestral, founded, phylograms, species_phylogram, seed,
                            assembled, initial_genome, "block" if nucleotide else "family",
                            # a nucleotide run's models are all forced to DNA above (and its `parts` is
                            # None — each block brings its own); elsewhere every partition shares one
