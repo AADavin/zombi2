@@ -101,13 +101,16 @@ class TestACellNobodyBuiltRefusesByName:
         with pytest.raises(ValueError, match="unknown unit 'banana'"):
             Random("banana", LogNormal(0.0, 0.5))
 
-    def test_a_smooth_curve_of_time_is_refused_rather_than_approximated(self):
-        """It is a real model — it makes the rate vary continuously, which needs the engine to
-        integrate rather than sample. Refusing beats a quiet approximation."""
-        with pytest.raises(ValueError, match="smooth function of|takes a schedule"):
+    def test_a_curve_of_time_is_refused_until_the_reader_chooses_its_step(self):
+        """Followed exactly it would make the rate vary between events, which needs the engine to
+        integrate rather than sample. So it is read in steps, and only at a step the reader wrote:
+        a resolution nobody chose would be a quiet approximation (#502)."""
+        with pytest.raises(ValueError, match="curve of time without a step"):
             PerLineage(1.0).changing_at(lambda t: 2.0 ** -t)
-        with pytest.raises(ValueError, match="smooth function of|takes a schedule"):
+        with pytest.raises(ValueError, match="curve of time without a step"):
             PerLineage().set_by(Time(), lambda t: 2.0 ** -t)
+        assert PerLineage(1.0).changing_at(lambda t: 2.0 ** -t, step=0.5).effective(
+            time=1.1, lineages=1) == 2.0 ** -1.25
 
     def test_setby_is_now_implemented(self):
         """It refused, with its reason, until the engines could take a replaced base. They can, so

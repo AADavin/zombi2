@@ -26,11 +26,12 @@ from __future__ import annotations
 import math
 from typing import Any, ClassVar, Mapping
 
-from .driver import OnTime, OnTotalDiversity, Random, TotalDiversity
+from .driver import OnTime, OnTimeCurve, OnTotalDiversity, Random, TotalDiversity
 from .evaluate import CHANGING_AT, DRIVEN, Modifier, SCALED_BY, SET_BY, VARYING_AMONG, WEIGHTED_BY, _WRITTEN_AS, _driver_form, describe
 from .law import Categorical, Category, Drawn, Drift, Inherited
 from .retired import check_no_retired_keywords
 from .driver import Measured, Time
+from .mapping import Curve
 
 #: The verb names, and so the attribute names `zombi2.params.parse` will follow in an expression.
 #: The written form is a call on an attribute, so this is the parser's whitelist for the attribute
@@ -79,7 +80,9 @@ def _refuse_time(driver: object, verb: str) -> None:
         raise ValueError(
             f"the run's clock has its own verb: write .changing_at({{0: 1.0, 3: 0.3}}) rather than "
             f"{verb}(Time(), ...). If you meant the schedule to hold the rates themselves rather "
-            f"than multiples of a base, that is PerLineage().set_by(Time(), {{0: 0.5, 3: 0.15}}).")
+            f"than multiples of a base, that is PerLineage().set_by(Time(), {{0: 0.5, 3: 0.15}}). "
+            f"Both also take a curve of time with the step to read it in: "
+            f".changing_at(Curve(lambda t: math.exp(-2 * t)), step=0.01).")
 
 
 def _refuse_a_whole_rule(driver: object) -> None:
@@ -110,19 +113,36 @@ def _refuse_a_whole_rule(driver: object) -> None:
             "the tree.")
 
 
-def _schedule(mapping: object, verb: str) -> dict:
-    """A time driver's mapping. A schedule — ``{0: 1.0, 3: 0.3}``, the value from each breakpoint on
-    — is the only shape an engine reads, because a rate that is piecewise-constant in time can be
-    stepped to exactly. A smooth curve of time is a real model and is refused rather than
-    approximated: it makes the rate vary continuously, which needs the engine to integrate its
-    hazard rather than sample it."""
+def _on_time(mapping: object, step: float | None, written: str, verb: str | None = None) -> OnTime:
+    """What a time driver's mapping builds. Two shapes are read, and both leave the rate constant
+    between breakpoints, which is the only thing an engine can step to exactly:
+
+    - a **schedule**, ``{0: 1.0, 3: 0.3}``, the value from each breakpoint on;
+    - a **curve of time with a step**, ``Curve(lambda t: math.exp(-2 * t)), step=0.01``, read as the
+      schedule that holds the curve's midpoint value over each interval of ``step``
+      (`OnTimeCurve`).
+
+    A curve with no step is refused rather than given a resolution nobody chose: followed exactly it
+    would make the rate vary between events, which needs the engine to integrate the rate rather
+    than read it at a point. ``written`` is the call up to its mapping — ``changing_at(`` or
+    ``set_by(Time(), `` — so each message shows the reader's own verb completed."""
+    a_schedule = f"{written}{{0: 1.0, 3: 0.3}})"
+    a_curve = f"{written}Curve(lambda t: math.exp(-2 * t)), step=0.01)"
+    name = written.split("(")[0]
     if isinstance(mapping, dict):
-        return mapping
+        if step is not None:
+            raise ValueError(
+                f"{name} received a schedule together with a step. Write {a_schedule} without a "
+                f"step.")
+        return OnTime(mapping, verb=verb)
+    if isinstance(mapping, Curve) or (callable(mapping) and not isinstance(mapping, type)):
+        if step is None:
+            raise ValueError(
+                f"{name} received a curve of time without a step. Write {a_curve}.")
+        return OnTimeCurve(mapping if isinstance(mapping, Curve) else Curve(mapping), step, verb=verb)
     raise ValueError(
-        f"{verb} takes a schedule — {{0: 1.0, 3: 0.3}}, the value from each breakpoint on — because "
-        f"a rate that changes in steps can be stepped to exactly. A smooth function of time is not "
-        f"implemented: it makes the rate vary continuously between events, which needs the engine "
-        f"to integrate the rate rather than read it at a point.")
+        f"{name} received {mapping!r}, which is neither a schedule nor a curve of time. Write "
+        f"{a_schedule} or {a_curve}.")
 
 
 def scaled_by(driver: object, mapping: object = None, *, step: float | None = None,
@@ -183,7 +203,7 @@ def set_by(driver: object, mapping: object = None, *, step: float | None = None,
     and records which verb wrote it (`OnTime.verb`), so a run's log says back what was typed.
     """
     if isinstance(driver, Time):
-        return OnTime(_schedule(mapping, "set_by(Time(), ...)"), verb=SET_BY)
+        return _on_time(mapping, step, "set_by(Time(), ", verb=SET_BY)
     _refuse_a_factor(driver, "set_by")
     if isinstance(driver, (TotalDiversity, Measured)):
         raise ValueError(
@@ -283,15 +303,22 @@ def varying_among(among: object = None, law: object = None, **retired: object) -
     return Random(among, law)
 
 
-def changing_at(schedule: object) -> OnTime:
+def changing_at(schedule: object, *, step: float | None = None) -> OnTime:
     """Let the parameter change in time — a skyline, the run's clock read as a schedule of factors::
 
         birth = PerLineage(0.5).changing_at({0: 1.0, 3: 0.3})   # 1.0, then 30% of it from time 3
 
     The numbers are multiples of the base. For the other reading — the schedule holding the rates
     themselves — write ``set_by(Time(), ...)``, which builds the same thing on a base of 1.0.
+
+    A **curve of time** is written with the ``step`` to read it in, in the tree's time units::
+
+        origination = PerLineage(2.0).changing_at(Curve(lambda t: math.exp(-2.0 * t)), step=0.01)
+
+    Time runs from 0 at the start of the run. Each interval of ``step`` holds the curve's value at
+    its midpoint, so this is the schedule ``{0: f(0.005), 0.01: f(0.015), ...}`` without writing it.
     """
-    return OnTime(_schedule(schedule, "changing_at"))
+    return _on_time(schedule, step, "changing_at(")
 
 
 class Driven(Modifier):
