@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from . import connection as verbs
 from .distributions import Distribution, Geometric, as_distribution
+from .driver import OnTimeCurve
 from .evaluate import CARRIED_KINDS, Modifier
 from .scope import Scope
 from dataclasses import dataclass
@@ -107,9 +108,10 @@ class Rate:
         ``spread=``) are answered by the one table rather than by "unexpected keyword argument"."""
         return self._and(verbs.varying_among(among, law, **retired))
 
-    def changing_at(self, schedule: object) -> "Rate":
-        """Let this rate change in time, on a schedule of factors — see `verbs.changing_at`."""
-        return self._and(verbs.changing_at(schedule))
+    def changing_at(self, schedule: object, *, step: float | None = None) -> "Rate":
+        """Let this rate change in time, on a schedule of factors or a curve of time read in steps
+        of ``step`` — see `verbs.changing_at`."""
+        return self._and(verbs.changing_at(schedule, step=step))
 
     def weighted_by(self, driver: object, mapping: object = None, *,
                     step: float | None = None, path: bool = True) -> "Rate":
@@ -122,6 +124,15 @@ class Rate:
 
     def _and(self, m: Modifier) -> "Rate":
         return Rate(self.base, self.scope, self.modifiers + (m,))
+
+    def with_schedules(self, until: float) -> "Rate":
+        """This rate with each curve of time written out as the schedule it stands for, up to
+        ``until`` — the same run, in a form that can be sent to a worker process
+        (`OnTimeCurve.as_schedule`). A rate carrying no curve of time is returned as it is."""
+        if not any(isinstance(m, OnTimeCurve) for m in self.modifiers):
+            return self
+        return Rate(self.base, self.scope, tuple(
+            m.as_schedule(until) if isinstance(m, OnTimeCurve) else m for m in self.modifiers))
 
     def _scope_name(self) -> str:
         return self.scope.__name__ if self.scope is not None else "PerLineage"
@@ -306,9 +317,10 @@ class Extent:
         """Multiply the size by a factor read from ``driver`` — see `verbs.scaled_by`."""
         return self._and(verbs.scaled_by(driver, mapping, step=step, path=path))
 
-    def changing_at(self, schedule: object) -> "Extent":
-        """Let the size change in time, on a schedule of factors — see `verbs.changing_at`."""
-        return self._and(verbs.changing_at(schedule))
+    def changing_at(self, schedule: object, *, step: float | None = None) -> "Extent":
+        """Let the size change in time, on a schedule of factors or a curve of time read in steps
+        of ``step`` — see `verbs.changing_at`."""
+        return self._and(verbs.changing_at(schedule, step=step))
 
     def varying_among(self, among: object = None, law: object = None,
                       **retired: object) -> "Extent":

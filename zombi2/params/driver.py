@@ -36,6 +36,7 @@ from typing import Any, ClassVar, Mapping
 from .evaluate import (CHANGING_AT, MEASURED, SCALED_BY, SET_BY, UNITS, VARYING_UNITS,
                       Modifier, _WRITTEN_AS)
 from .law import Categorical, Category, Drawn, Drift, Inherited
+from .mapping import Curve
 from .retired import check_no_retired_keywords
 
 
@@ -235,6 +236,94 @@ class OnTime(Modifier):
         return hash((OnTime, self._steps))
 
 
+class OnTimeCurve(OnTime):
+    """The rate follows a **curve of time**, read in steps. Written ``changing_at`` with a ``step``::
+
+        origination = PerLineage(2.0).changing_at(Curve(lambda t: math.exp(-2.0 * t)), step=0.01)
+
+    The clock is cut into intervals of ``step``, counted from time 0, and each interval holds the
+    curve's value at its midpoint. It is the schedule ``{0: f(step/2), step: f(3*step/2), ...}``
+    without the dictionary, and an engine cannot tell the two apart: it asks a modifier for its
+    factor at an instant and for its next breakpoint, and this answers both from the curve. That is
+    why nothing is built ahead and no end of the tree is needed, so a tree grown to a number of
+    lineages is covered like one grown to a time.
+
+    Before time 0 the first interval's value holds, which is what a schedule does before its first
+    breakpoint.
+    """
+
+    def __init__(self, curve: Curve, step: float, *, verb: str | None = None) -> None:
+        if not isinstance(curve, Curve):
+            raise TypeError(f"a curve of time is a Curve, got {curve!r}")
+        if isinstance(step, bool) or not isinstance(step, (int, float)) \
+                or not math.isfinite(step) or step <= 0:
+            raise ValueError(
+                f"a curve of time received step={step!r}, which is not a positive finite number. "
+                f"Write a positive finite step, for example step=0.01.")
+        self.curve = curve
+        self.step = float(step)
+        self._held: dict[int, float] = {}     # interval -> the curve at its midpoint, read once
+        if verb is not None:
+            self.verb = verb
+
+    def _interval(self, time: float) -> int:
+        """Which interval holds ``time``: the ``i`` with ``i * step <= time < (i + 1) * step``.
+
+        The division alone is not that number. ``0.29 / 0.01`` is ``28.999999999999996``, so its
+        floor names the interval before the one a schedule keyed ``29 * 0.01`` would answer from;
+        the two loops move it to the interval those products actually bound."""
+        if time <= 0.0:
+            return 0
+        i = math.floor(time / self.step)
+        while (i + 1) * self.step <= time:
+            i += 1
+        while i * self.step > time:
+            i -= 1
+        return i
+
+    def factor(self, *, time: float, **_: Any) -> float:  # type: ignore[override]
+        i = self._interval(time)
+        f = self._held.get(i)
+        if f is None:
+            f = self._held[i] = self.curve.multiplier((i + 0.5) * self.step)
+        return f
+
+    def next_change(self, time: float) -> float:
+        if time < 0.0:
+            return 0.0
+        return (self._interval(time) + 1) * self.step
+
+    def as_schedule(self, until: float) -> OnTime:
+        """The plain schedule this stands for, from time 0 past ``until``.
+
+        It answers every instant up to ``until`` with the same factor and the same next breakpoint,
+        so the run is the one the curve gives. What it buys is that a schedule is numbers: a curve
+        is usually a lambda, which cannot be sent to a worker process, and an engine that knows
+        where its tree ends can send this instead."""
+        last = self._interval(until) + 1
+        return OnTime({i * self.step: self.factor(time=i * self.step) for i in range(last + 1)},
+                      verb=self.verb)
+
+    def written_call(self) -> str:
+        if self.verb == SET_BY:
+            return f"{SET_BY}(Time(), {self.curve!r}, step={self.step!r})"
+        return f"{CHANGING_AT}({self.curve!r}, step={self.step!r})"
+
+    def __eq__(self, other: object) -> bool:
+        """By the function and its step. A function has no value to compare, so two curves are the
+        same curve only when they are the same function object."""
+        return (isinstance(other, OnTimeCurve) and other.curve.fn is self.curve.fn
+                and other.curve.bound == self.curve.bound and other.step == self.step)
+
+    def __hash__(self) -> int:
+        return hash((OnTimeCurve, id(self.curve.fn), self.step))
+
+    def __getstate__(self) -> dict:
+        state = dict(self.__dict__)
+        state["_held"] = {}
+        return state
+
+
 @dataclass(frozen=True)
 class TotalDiversity:
     """The lineages standing right now, as a **driver** a rate can be scaled by::
@@ -346,7 +435,7 @@ def Random(unit: str | None = None, law: object = None, **retired: Any) -> Modif
     return Drawn(unit, law)
 
 
-_WRITTEN_AS.update({OnTime: CHANGING_AT,
+_WRITTEN_AS.update({OnTime: CHANGING_AT, OnTimeCurve: CHANGING_AT,
                     OnTotalDiversity: f"{SCALED_BY}(TotalDiversity(...))"})
 
 

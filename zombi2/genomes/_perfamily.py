@@ -855,6 +855,13 @@ def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, s
     if any(lin_by.values()):
         lin_mult = draw_lineage_multipliers(lin_by, tree, np.random.default_rng(root_ss.spawn(1)[0]))
 
+    # A curve of time is usually a lambda, which cannot cross to a worker. The tree is finished, so
+    # each one is written out as the schedule it stands for, down to the last tip: the same factor
+    # at every instant and the same breakpoints, in numbers. Done for any worker count, so that the
+    # run does not depend on one.
+    tree_end = max(tree.nodes[i].end_time for i in tree.nodes)
+    dup, tra, los = (r.with_schedules(tree_end) for r in (dup, tra, los))
+
     ctx = prepare_family_context(
         tree, dup=dup, tra=tra, los=los, transfer_to=transfer_to, replacement=replacement,
         self_transfer=self_transfer, cap=cap,

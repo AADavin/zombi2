@@ -84,7 +84,7 @@ The modifiers are:
 
 | Verb | What it does to the rate |
 |---|---|
-| `changing_at` | Follows a **time schedule**: one factor up to a breakpoint, another after it. |
+| `changing_at` | Follows a **schedule** of factors at breakpoints, or a **curve of time** with a `step`, where each interval holds the curve's value at its midpoint. |
 | `scaled_by(TotalDiversity(cap=...))` | **Slows as the tree fills up**: the factor falls from 1 toward 0 as the number of lineages approaches a carrying capacity, and stays there. |
 | `varying_among('lineages', Drift(...))` | Is **inherited from the parent lineage and nudged at each split**, so the rate drifts gradually down the tree and close relatives keep similar rates. |
 | `varying_among('lineages', ...)` | Is an **independent draw for each lineage**, with no memory of its parent, so nearby branches are no more alike than distant ones. |
@@ -180,6 +180,31 @@ A modifier missing from a row is one that level does not read **yet**. It is not
 combination would be meaningless; each engine gains a modifier when its own code learns to read it, and
 some have not got there. You never have to guess which: give a level a modifier it does not accept and
 the error names the ones it does, so this table can always be read back off the tool itself.
+
+### A curve of time
+
+Use a curve of time to make a rate decay without building a schedule by hand. Supply a function of time and a `step`. Time starts at 0 in the tree's time units. ZOMBI2 splits time into intervals of width `step`. Each interval holds the curve of time's value at its midpoint, so the rate stays constant inside the interval.
+
+```python
+import math
+from zombi2.params import Curve, PerLineage
+
+origination = PerLineage(2.0).changing_at(Curve(lambda t: math.exp(-2.0 * t)), step=0.01)
+
+# the schedule it stands for, built by hand
+by_hand = {i * 0.01: math.exp(-2.0 * (i + 0.5) * 0.01) for i in range(1000)}
+origination = PerLineage(2.0).changing_at(by_hand)
+```
+
+This gives exactly the hand-built schedule shown, and the same seed gives the same run. A smaller `step` follows the curve of time more closely but slows the run by stopping more often. To start the decay late, include the delay in the function.
+
+```python
+k, t0 = 2.0, 0.5
+origination = PerLineage(2.0).changing_at(
+    lambda t: 1.0 if t < t0 else math.exp(-k * (t - t0)), step=0.01)
+```
+
+Values multiply the base rate. To give rates themselves, write `PerLineage().set_by(Time(), lambda t: 2.0 * math.exp(-2.0 * t), step=0.01)`. Use this form only in Python. Command-line runs still take a schedule.
 
 ### A state, but only after a time
 
