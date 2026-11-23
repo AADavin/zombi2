@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.64.0] - 2026-11-23
+
 ### Added
 
 - `changing_at` now accepts a curve of time with a `step`, and `set_by(Time(), ...)` accepts one too. Each interval spans one `step` and holds the curve of time's value at its midpoint. The same seed gives the same run as the matching hand-built schedule. Use these forms only in Python. (#503)
