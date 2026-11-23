@@ -1,6 +1,6 @@
 # ZOMBI2
 
-**[Manual (pdf)](https://aadavin.github.io/zombi2/zombi2-manual.pdf)**
+**[Manual (pdf)](https://aadavin.github.io/ZOMBI2/zombi2-manual.pdf)**
 
 **ZOMBI2** simulates the evolution of **species trees**, **genomes**, **sequences** and **traits** —
 each on its own, conditioned on another, or jointly — and records the true history behind every
@@ -55,9 +55,9 @@ sp = species.simulate_species_tree(
 An agent that will use ZOMBI2 in your project starts from one file, which installs it and says how
 it is driven. Give the agent this line:
 
-> Fetch and follow the instructions at https://aadavin.github.io/zombi2/docs/agent-setup/prompt.txt to set me up for ZOMBI2.
+> Fetch and follow the instructions at https://aadavin.github.io/ZOMBI2/docs/agent-setup/prompt.txt to set me up for ZOMBI2.
 
-The same file is linked from [`llms.txt`](https://aadavin.github.io/zombi2/docs/llms.txt), the index
+The same file is linked from [`llms.txt`](https://aadavin.github.io/ZOMBI2/docs/llms.txt), the index
 language models look for.
 
 ## Where next

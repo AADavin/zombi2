@@ -19,7 +19,7 @@ import pytest
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PROMPT = ROOT / "docs" / "agent-setup" / "prompt.txt"
 APPENDIX_B = ROOT / "manual" / "book" / "appendix-b.md"
-SITE = "https://aadavin.github.io/zombi2/"
+SITE = "https://aadavin.github.io/ZOMBI2/"
 
 
 def _indented_blocks(text: str) -> list[tuple[int, str]]:
@@ -107,7 +107,7 @@ def test_every_output_file_the_prompt_names_is_in_appendix_b():
 
 def test_every_url_in_the_prompt_is_a_page_of_this_site():
     text = PROMPT.read_text(encoding="utf-8")
-    urls = sorted(set(re.findall(r"https://aadavin\.github\.io/zombi2/\S+", text)))
+    urls = sorted(set(re.findall(r"https://aadavin\.github\.io/ZOMBI2/\S+", text)))
     assert urls
     for url in urls:
         path = url[len(SITE):].rstrip(".,)").rstrip("/")     # a sentence's end, then the slash

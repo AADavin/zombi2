@@ -5,7 +5,7 @@ The sequence level does two main things:
 * It rescales the gene trees and the species tree from time into substitutions per site (**phylograms**).
 * It evolves the residues that sit inside every gene, so each family ends with a sequence.
 
-The simulation records the sequences at the ancestral nodes too ([Sq9](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:seq_ancestral-->).
+The simulation records the sequences at the ancestral nodes too ([Sq9](https://aadavin.github.io/ZOMBI2/gallery.html#sequences)<!--gallery:seq_ancestral-->).
 
 ## Creating phylograms
 
@@ -30,7 +30,7 @@ ZOMBI2 implements ten standard models of sequence evolution.
 | `wag` | residues | none | [@whelan2001general] |
 | `lg` | residues | none | [@le2008improved] |
 
-The model decides the alphabet, and `length` counts whatever that alphabet holds. The nucleotide models are four different rate matrices rather than one model with four settings, but they nest in the order written, since `jc69` is `k80` with `kappa=1` and `k80` is `hky85` with equal base frequencies, so each step down the table adds free parameters. The protein matrices are **empirical**, each estimated once from a large set of real alignments and then used as a fixed table, which is why they take no parameters of their own ([Sq3](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:seq_protein-->).
+The model decides the alphabet, and `length` counts whatever that alphabet holds. The nucleotide models are four different rate matrices rather than one model with four settings, but they nest in the order written, since `jc69` is `k80` with `kappa=1` and `k80` is `hky85` with equal base frequencies, so each step down the table adds free parameters. The protein matrices are **empirical**, each estimated once from a large set of real alignments and then used as a fixed table, which is why they take no parameters of their own ([Sq3](https://aadavin.github.io/ZOMBI2/gallery.html#sequences)<!--gallery:seq_protein-->).
 
 ### Codon models
 
@@ -49,7 +49,7 @@ Choose `omega` for selection, `kappa` for transition bias (default 2.0), and `co
 
 ### Your own matrix
 
-If none of the ten is the model you want, write the matrix yourself. `reversible` takes a symmetric **exchangeability** matrix $S$ and stationary frequencies $\pi$, and returns a model like any other: the rate of $i \to j$ is $Q_{ij} = S_{ij}\,\pi_j$, scaled so that one unit of branch length is one expected substitution per site, the same scaling every model on the menu gets, so a phylogram from your matrix compares with one from `hky85` without converting anything. This is the constructor the menu itself uses, and ([Sq11](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:custom_matrix-->) rebuilds HKY85 with it by hand. You give $S$ and $\pi$ rather than $Q$ directly, and the restriction is deliberate: the engine's matrix exponential is only valid for a **time-reversible** model, which a symmetric $S$ times $\pi$ satisfies by construction; a general $Q$ is refused with an error rather than run. Pass `alphabet=AMINO_ACIDS` for a twenty-state matrix of your own. There is no command-line flag for a custom matrix: a twenty-state matrix is 190 numbers, which is a file format rather than an argument.
+If none of the ten is the model you want, write the matrix yourself. `reversible` takes a symmetric **exchangeability** matrix $S$ and stationary frequencies $\pi$, and returns a model like any other: the rate of $i \to j$ is $Q_{ij} = S_{ij}\,\pi_j$, scaled so that one unit of branch length is one expected substitution per site, the same scaling every model on the menu gets, so a phylogram from your matrix compares with one from `hky85` without converting anything. This is the constructor the menu itself uses, and ([Sq11](https://aadavin.github.io/ZOMBI2/gallery.html#sequences)<!--gallery:custom_matrix-->) rebuilds HKY85 with it by hand. You give $S$ and $\pi$ rather than $Q$ directly, and the restriction is deliberate: the engine's matrix exponential is only valid for a **time-reversible** model, which a symmetric $S$ times $\pi$ satisfies by construction; a general $Q$ is refused with an error rather than run. Pass `alphabet=AMINO_ACIDS` for a twenty-state matrix of your own. There is no command-line flag for a custom matrix: a twenty-state matrix is 190 numbers, which is a file format rather than an argument.
 
 ## Rate variation across sites
 
@@ -99,7 +99,7 @@ pseudocount, or a **protein language model**, which already produces a distribut
 at every position. Either way, compute the table once and save the array beside your script. A
 saved array keeps the simulation bit-identical from the seed, where calling a model at simulation
 time would put its version and its hardware inside your run's reproducibility.
-([Sq12](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:seq_profiles-->) builds
+([Sq12](https://aadavin.github.io/ZOMBI2/gallery.html#sequences)<!--gallery:seq_profiles-->) builds
 a profile from an alignment and runs one.
 
 Profiles and rate variation across sites are about different things and compose: a profile says **which** amino acids belong
@@ -162,12 +162,12 @@ The rate is `substitution`, counted **per site**: a gene-tree branch of Δ*t* ti
 
 | What it does | From the literature | Gallery |
 |-------------------|--------------------------------|---|
-| one rate everywhere | Strict / global clock | [Sq1](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:seq_alignment--> |
-| each lineage i.i.d. lognormal | Uncorrelated lognormal (UCLN) | [Sq5](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:clock_ucln--> |
-| each lineage i.i.d. gamma | Uncorrelated gamma (UGAM) | [Sq6](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:clock_ugam--> |
-| the rate drifts parent to daughter | Autocorrelated lognormal | [Sq7](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:clock_autocorrelated--> |
-| the rate takes one of a few values, inherited in steps | Discrete rate categories | [Sq8](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:clock_discrete_bin--> |
-| the rate depends on another level | Trait-dependent rate of molecular evolution | [Co10](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:climate_substitution--> |
+| one rate everywhere | Strict / global clock | [Sq1](https://aadavin.github.io/ZOMBI2/gallery.html#sequences)<!--gallery:seq_alignment--> |
+| each lineage i.i.d. lognormal | Uncorrelated lognormal (UCLN) | [Sq5](https://aadavin.github.io/ZOMBI2/gallery.html#sequences)<!--gallery:clock_ucln--> |
+| each lineage i.i.d. gamma | Uncorrelated gamma (UGAM) | [Sq6](https://aadavin.github.io/ZOMBI2/gallery.html#sequences)<!--gallery:clock_ugam--> |
+| the rate drifts parent to daughter | Autocorrelated lognormal | [Sq7](https://aadavin.github.io/ZOMBI2/gallery.html#sequences)<!--gallery:clock_autocorrelated--> |
+| the rate takes one of a few values, inherited in steps | Discrete rate categories | [Sq8](https://aadavin.github.io/ZOMBI2/gallery.html#sequences)<!--gallery:clock_discrete_bin--> |
+| the rate depends on another level | Trait-dependent rate of molecular evolution | [Co10](https://aadavin.github.io/ZOMBI2/gallery.html#conditioning)<!--gallery:climate_substitution--> |
 
 Appendix A spells out how each one is written.
 
@@ -233,7 +233,7 @@ sequences.simulate_sequences(my_genomes, model=hky85(), length=1000, divergence=
 
 ### A clade can evolve differently, not only faster
 
-Everything above changes how *fast* a lineage evolves. `Models` changes what the change *looks like*: which residues turn into which, and what composition the sequence settles at ([Sq2](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:clade_own_model-->). It is written as `Models().set_by(Clade({"endo": [...]}), {"endo": at_rich, "rest": hky85(kappa=2.0)})`, and every clade needs a model, `"rest"` included, which is every lineage in no named clade. An endosymbiont clade can then evolve faster *and* drift toward AT at once, with `substitution=PerSite(1.0).scaled_by(clade, {"endo": 3.0, "rest": 1.0})` beside it. Three limits: the alphabet and the across-site rate classes are shared across clades; the driver of a `Models` must be a `Clade`; and `Models` is Python only, because a model is a K×K matrix, which has no written form a flag can carry.
+Everything above changes how *fast* a lineage evolves. `Models` changes what the change *looks like*: which residues turn into which, and what composition the sequence settles at ([Sq2](https://aadavin.github.io/ZOMBI2/gallery.html#sequences)<!--gallery:clade_own_model-->). It is written as `Models().set_by(Clade({"endo": [...]}), {"endo": at_rich, "rest": hky85(kappa=2.0)})`, and every clade needs a model, `"rest"` included, which is every lineage in no named clade. An endosymbiont clade can then evolve faster *and* drift toward AT at once, with `substitution=PerSite(1.0).scaled_by(clade, {"endo": 3.0, "rest": 1.0})` beside it. Three limits: the alphabet and the across-site rate classes are shared across clades; the driver of a `Models` must be a `Clade`; and `Models` is Python only, because a model is a K×K matrix, which has no written form a flag can carry.
 
 ### Where a sequence starts
 

@@ -17,7 +17,7 @@ code, not about the model.
 
 ## Species trees
 
-What ships is in [Species trees](https://aadavin.github.io/zombi2/docs/guide/species-trees/) —
+What ships is in [Species trees](https://aadavin.github.io/ZOMBI2/docs/guide/species-trees/) —
 including mass extinctions, incomplete sampling, fossil recovery, piecewise time-varying rates,
 and diversity-dependent rates.
 
@@ -100,7 +100,7 @@ matrices, the threshold model, and rates driven by other levels in both directio
 ## Dependent runs
 
 What ships is in the Dependent runs chapter and the
-[connection reference](https://aadavin.github.io/zombi2/docs/guide/connection-reference/) —
+[connection reference](https://aadavin.github.io/ZOMBI2/docs/guide/connection-reference/) —
 all six level pairs, an engine for every joinable pair, and a gallery example for every
 connection.
 

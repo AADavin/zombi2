@@ -35,11 +35,11 @@ One model does not fit the modifier framework: a **mass extinction**, where at o
 
 | What it does | From the literature | Gallery |
 |-------------------|--------------------------------|---|
-| rates change at set times | skyline / episodic birth–death [@stadler2011mammalian] | [Sp3](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:rateshift--> |
-| rate slows as the tree fills | diversity-dependent diversification [@rabosky2008densitydependent; @etienne2012diversitydependence] | [Sp4](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:diversity--> |
-| rates drift, inherited at each split | ClaDS [@maliet2019clads] | [Sp5](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:inherited--> |
-| rates vary, drawn afresh per lineage | uncorrelated ("relaxed") rates | [Sp6](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:perlineage--> |
-| a fraction culled at an instant | mass extinction | [Sp7](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:massext--> |
+| rates change at set times | skyline / episodic birth–death [@stadler2011mammalian] | [Sp3](https://aadavin.github.io/ZOMBI2/gallery.html#species)<!--gallery:rateshift--> |
+| rate slows as the tree fills | diversity-dependent diversification [@rabosky2008densitydependent; @etienne2012diversitydependence] | [Sp4](https://aadavin.github.io/ZOMBI2/gallery.html#species)<!--gallery:diversity--> |
+| rates drift, inherited at each split | ClaDS [@maliet2019clads] | [Sp5](https://aadavin.github.io/ZOMBI2/gallery.html#species)<!--gallery:inherited--> |
+| rates vary, drawn afresh per lineage | uncorrelated ("relaxed") rates | [Sp6](https://aadavin.github.io/ZOMBI2/gallery.html#species)<!--gallery:perlineage--> |
+| a fraction culled at an instant | mass extinction | [Sp7](https://aadavin.github.io/ZOMBI2/gallery.html#species)<!--gallery:massext--> |
 
 ## Sampling
 
@@ -51,7 +51,7 @@ By default you see every surviving species. **`sampling`** keeps a random fracti
 
 ## Fossils
 
-**`fossils`** recovers lineages from the past [@heath2014fossilized; @gavryushkina2014sampledancestor]. Fossils are sampled along **every** branch of the complete tree at a rate you set, so `fossils=0.1` scatters dated samples through its history. They are a side output, written to `species_fossils.tsv` beside the trees (Appendix B); a fossil does not remove its lineage and does not appear in the extant tree ([Sp8](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:sampling-->).
+**`fossils`** recovers lineages from the past [@heath2014fossilized; @gavryushkina2014sampledancestor]. Fossils are sampled along **every** branch of the complete tree at a rate you set, so `fossils=0.1` scatters dated samples through its history. They are a side output, written to `species_fossils.tsv` beside the trees (Appendix B); a fossil does not remove its lineage and does not appear in the extant tree ([Sp8](https://aadavin.github.io/ZOMBI2/gallery.html#species)<!--gallery:sampling-->).
 
 ## Hidden lineages for a tree you have
 

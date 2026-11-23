@@ -112,11 +112,11 @@ command line, because a flag is a promise to keep something.
 
 Promotion out of experimental is a **human decision**, and it is mine. What it takes is the feature
 being properly documented: a manual section, its outputs in Appendix B, and ideally an example in
-the [gallery](https://aadavin.github.io/zombi2/gallery.html). Graduating then moves no files — the
+the [gallery](https://aadavin.github.io/ZOMBI2/gallery.html). Graduating then moves no files — the
 marker comes off and the flag goes on, and the code was in the right place all along.
 
 ## What ZOMBI2 promises
 
 The same seed and the same version give the same output, on any machine and any supported Python.
 Anything that changes what a seed produces is a breaking change; see
-[Reproducibility](https://aadavin.github.io/zombi2/docs/reproducibility/).
+[Reproducibility](https://aadavin.github.io/ZOMBI2/docs/reproducibility/).

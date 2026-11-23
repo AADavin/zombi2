@@ -4,7 +4,7 @@ creates.
 
 Read this entire file before running your first command. ZOMBI2's test suite checks these instructions
 against the released code. The live copy is
-https://aadavin.github.io/zombi2/docs/agent-setup/prompt.txt.
+https://aadavin.github.io/ZOMBI2/docs/agent-setup/prompt.txt.
 
 Install ZOMBI2 yourself. Ask the user before writing outside the directory they provided.
 Use only flags and file names listed here or in the linked manual. Never guess them.
@@ -78,7 +78,7 @@ Use these modifier verbs:
 
 The scopes are `PerLineage`, `PerCopy`, `PerSite`, `PerChromosome`, `Global`.
 Each level rejects modifiers it cannot apply. It never ignores them.
-Read the full grammar at https://aadavin.github.io/zombi2/docs/rates/.
+Read the full grammar at https://aadavin.github.io/ZOMBI2/docs/rates/.
 
 ----------------------------------------------------------------------------------------------------
 4. The commands, one example each
@@ -149,7 +149,7 @@ Run `zombi2 <command> -h` to list every flag and its default.
 Read TSV columns by header name, never by position. Later versions may append columns.
 Trees use Newick format. Branch lengths represent time, except in phylograms.
 The full output list has one table per level:
-https://aadavin.github.io/zombi2/docs/output-files/.
+https://aadavin.github.io/ZOMBI2/docs/output-files/.
 
 Use Python function calls to run the same simulations. Arguments use the same names as the flags.
 Results hold file contents as objects:
@@ -163,7 +163,7 @@ Results hold file contents as objects:
     g.write("out")                  # the same files the command line writes
 
 Use `zombi2.genomes.read_run("out")` to reopen a written Genomes run.
-Read the API reference at https://aadavin.github.io/zombi2/docs/api/.
+Read the API reference at https://aadavin.github.io/ZOMBI2/docs/api/.
 
 ----------------------------------------------------------------------------------------------------
 6. Things that go wrong, and what they mean
@@ -194,8 +194,8 @@ Read the API reference at https://aadavin.github.io/zombi2/docs/api/.
 ----------------------------------------------------------------------------------------------------
 
 The manual contains eight chapters and three appendices. Its tests run every example:
-https://aadavin.github.io/zombi2/docs/guide/introduction/
-The gallery provides worked figures and code: https://aadavin.github.io/zombi2/gallery.html
+https://aadavin.github.io/ZOMBI2/docs/guide/introduction/
+The gallery provides worked figures and code: https://aadavin.github.io/ZOMBI2/gallery.html
 Worked analyses include scripts, seeds and reports: https://github.com/AADavin/zombi2/tree/main/analyses
 The repository welcomes issues from agents and people: https://github.com/AADavin/zombi2
 Cite: Davín, A. A. (2026). ZOMBI2. Zenodo. https://doi.org/10.5281/zenodo.23168059
