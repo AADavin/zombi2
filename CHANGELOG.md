@@ -9,6 +9,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Fixed
+
+- Documentation links in the README, manual, documentation pages, and PyPI now point to https://aadavin.github.io/ZOMBI2/. (#504)
+
 ## [0.64.0] - 2026-11-23
 
 ### Added

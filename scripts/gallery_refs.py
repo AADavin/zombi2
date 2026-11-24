@@ -24,7 +24,7 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BOOK = ROOT / "manual" / "book"
-URL = "https://aadavin.github.io/zombi2/gallery.html"
+URL = "https://aadavin.github.io/ZOMBI2/gallery.html"
 SECTION = {"Sp": "species", "Ge": "genomes", "Sq": "sequences",
            "Tr": "traits", "Co": "conditioning", "Jo": "joining"}
 

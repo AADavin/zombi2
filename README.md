@@ -1,10 +1,10 @@
 # $\textsf{\textcolor{#0f766e}{Z}OMBI2}$
 
-**[🌐 Website](https://aadavin.github.io/zombi2/)** · [Gallery](https://aadavin.github.io/zombi2/gallery.html) · [Documentation](https://aadavin.github.io/zombi2/docs/) · [Manual (pdf)](https://aadavin.github.io/zombi2/zombi2-manual.pdf) · [Roadmap](ROADMAP.md)
+**[🌐 Website](https://aadavin.github.io/ZOMBI2/)** · [Gallery](https://aadavin.github.io/ZOMBI2/gallery.html) · [Documentation](https://aadavin.github.io/ZOMBI2/docs/) · [Manual (pdf)](https://aadavin.github.io/ZOMBI2/zombi2-manual.pdf) · [Roadmap](ROADMAP.md)
 
 [![CI](https://github.com/AADavin/zombi2/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/AADavin/zombi2/actions/workflows/ci.yml?query=branch%3Amain)
 [![PyPI](https://img.shields.io/pypi/v/zombi2)](https://pypi.org/project/zombi2/)
-[![Docs](https://img.shields.io/badge/docs-mkdocs--material-blue)](https://aadavin.github.io/zombi2/docs/)
+[![Docs](https://img.shields.io/badge/docs-mkdocs--material-blue)](https://aadavin.github.io/ZOMBI2/docs/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23168059.svg)](https://doi.org/10.5281/zenodo.23168059)
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
@@ -25,7 +25,7 @@ pip install zombi2
 
 Working with an AI agent? Give it this line, and it sets itself up to use ZOMBI2 in your project:
 
-> Fetch and follow the instructions at https://aadavin.github.io/zombi2/docs/agent-setup/prompt.txt to set me up for ZOMBI2.
+> Fetch and follow the instructions at https://aadavin.github.io/ZOMBI2/docs/agent-setup/prompt.txt to set me up for ZOMBI2.
 
 ---
 
@@ -67,25 +67,25 @@ survivors. `run.zombi2` gives both, as `families 100 born · 92 surviving · 8 d
 ZOMBI2 is organized around **four levels of evolution**. A genome or a trait evolves along the
 species tree, and a sequence evolves inside a gene of the genome, so a sequences run needs a genomes
 run first. The levels you run are composed into one seeded,
-[reproducible](https://aadavin.github.io/zombi2/docs/reproducibility/) run.
+[reproducible](https://aadavin.github.io/ZOMBI2/docs/reproducibility/) run.
 
 <p align="center">
   <img alt="One simulated dataset at all four levels: a species tree with its extinct lineages, the gene order of every surviving genome with homologues linked, the alignment behind one gene family, and two traits drifting together" src="https://raw.githubusercontent.com/AADavin/zombi2/main/assets/overview.png" width="900">
 </p>
 
-- **[Species trees](https://aadavin.github.io/zombi2/docs/guide/species-trees/)** — a
+- **[Species trees](https://aadavin.github.io/ZOMBI2/docs/guide/species-trees/)** — a
   birth–death process with rates that can shift in time, saturate with diversity or drift down
   the tree, plus mass extinctions, incomplete sampling and fossils.
-- **[Genomes](https://aadavin.github.io/zombi2/docs/guide/genomes/)** — gene families under
+- **[Genomes](https://aadavin.github.io/ZOMBI2/docs/guide/genomes/)** — gene families under
   duplication, transfer, loss and origination, at three resolutions: gene families,
-  [ordered](https://aadavin.github.io/zombi2/docs/guide/genomes-ordered/) chromosomes with
+  [ordered](https://aadavin.github.io/ZOMBI2/docs/guide/genomes-ordered/) chromosomes with
   rearrangements, and
-  [nucleotide](https://aadavin.github.io/zombi2/docs/guide/genomes-nucleotide/) genomes, with real
+  [nucleotide](https://aadavin.github.io/ZOMBI2/docs/guide/genomes-nucleotide/) genomes, with real
   DNA along each chromosome.
-- **[Sequences](https://aadavin.github.io/zombi2/docs/guide/sequences/)** — nucleotide (JC69,
+- **[Sequences](https://aadavin.github.io/ZOMBI2/docs/guide/sequences/)** — nucleotide (JC69,
   K80, HKY85, GTR), codon (GY94) and protein substitution models run down each gene tree, with ancestral
   sequences at every node.
-- **[Traits](https://aadavin.github.io/zombi2/docs/guide/traits/)** — continuous traits that
+- **[Traits](https://aadavin.github.io/ZOMBI2/docs/guide/traits/)** — continuous traits that
   diffuse, revert to an optimum or shift at speciation, and discrete traits switching between
   states.
 
@@ -95,7 +95,7 @@ run first. The levels you run are composed into one seeded,
 
 ## Dependent runs
 
-**[Dependent runs](https://aadavin.github.io/zombi2/docs/guide/conditioning/)** are how ZOMBI2
+**[Dependent runs](https://aadavin.github.io/ZOMBI2/docs/guide/conditioning/)** are how ZOMBI2
 simulates a scenario where one part of the run controls another — a habitat trait that makes
 lineages lose genes four times faster in the water, a gene family whose presence speeds up transfer
 for the rest of the genome, a GC content that sets how fast a trait changes. Every dependency is
@@ -118,7 +118,7 @@ zombi2 genomes out/ --loss "PerCopy(0.25).scaled_by('out/traits/trait_events.tsv
 ```
 
 When neither level can be simulated first, the run is
-**[joint](https://aadavin.github.io/zombi2/docs/guide/joining/)**: one run simulates both levels at
+**[joint](https://aadavin.github.io/ZOMBI2/docs/guide/joining/)**: one run simulates both levels at
 the same time. A trait that speeds up speciation is the standard case — lineages carrying it split
 more often, so the trait decides the shape of the tree while the tree decides where the trait can
 go — and the tree comes out as a result rather than going in as an input.
@@ -145,17 +145,17 @@ runs about **210× faster than the legacy ZOMBI1** — both pure Python.
 
 The numbers behind the figure are in [`assets/performance/`](assets/performance/), one JSON per
 benchmark with the raw times and their provenance; the full read is the docs site's
-[Performance page](https://aadavin.github.io/zombi2/docs/performance/).
+[Performance page](https://aadavin.github.io/ZOMBI2/docs/performance/).
 
 ## Gallery
 
-The [gallery](https://aadavin.github.io/zombi2/gallery.html) is a page of worked examples, one figure
-each, with the code that produced it: [species trees](https://aadavin.github.io/zombi2/gallery.html#species),
-[genomes](https://aadavin.github.io/zombi2/gallery.html#genomes),
-[sequences](https://aadavin.github.io/zombi2/gallery.html#sequences),
-[traits](https://aadavin.github.io/zombi2/gallery.html#traits),
-[conditioning](https://aadavin.github.io/zombi2/gallery.html#conditioning) and
-[joining](https://aadavin.github.io/zombi2/gallery.html#joining). Every figure is drawn with
+The [gallery](https://aadavin.github.io/ZOMBI2/gallery.html) is a page of worked examples, one figure
+each, with the code that produced it: [species trees](https://aadavin.github.io/ZOMBI2/gallery.html#species),
+[genomes](https://aadavin.github.io/ZOMBI2/gallery.html#genomes),
+[sequences](https://aadavin.github.io/ZOMBI2/gallery.html#sequences),
+[traits](https://aadavin.github.io/ZOMBI2/gallery.html#traits),
+[conditioning](https://aadavin.github.io/ZOMBI2/gallery.html#conditioning) and
+[joining](https://aadavin.github.io/ZOMBI2/gallery.html#joining). Every figure is drawn with
 [Phylustrator](https://pypi.org/project/phylustrator/).
 
 ## Citation

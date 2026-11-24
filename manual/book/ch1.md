@@ -123,7 +123,7 @@ Windows and are worth knowing before they bite:
 
 ## The examples gallery
 
-ZOMBI2 includes an [examples gallery](https://aadavin.github.io/zombi2/gallery.html) on how to
+ZOMBI2 includes an [examples gallery](https://aadavin.github.io/ZOMBI2/gallery.html) on how to
 simulate many different scenarios: a page of worked examples, each with the exact commands that made
 it. The gallery numbers them by section: `Sp` species, `Ge` genomes, `Sq` sequences and `Tr` traits
 for the four levels, then `Co` conditioning and `Jo` joining, the two kinds of dependent run

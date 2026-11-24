@@ -8,7 +8,7 @@ The previous chapter put genes on the tree as a *bag of families*, how many copi
 
 A genome has a **karyotype**: `chromosomes=N` chromosomes, each with a `topology`: `"circular"` (the default) or `"linear"`, or a per-chromosome list like `["circular", "linear"]` for a mixed set. The founding `initial_families` genes are distributed across the chromosomes in turn. The number of chromosomes can also evolve through different events.
 
-The karyotype itself evolves: four events change the **number** of chromosomes ([Ge10](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_karyotype-->):
+The karyotype itself evolves: four events change the **number** of chromosomes ([Ge10](https://aadavin.github.io/ZOMBI2/gallery.html#genomes)<!--gallery:genome_karyotype-->):
 
 - **`fission`** *(per chromosome)*. A chromosome splits in two at a uniform cut, both halves keeping its topology; a single-gene chromosome cannot split.
 - **`fusion`** *(per chromosome)*. Two chromosomes of a genome merge into one. Only two of the **same topology**: a ring and a molecule with two ends cannot become one molecule, so a circular chromosome never fuses with a linear one, and a genome holding one of each never fuses at all.
@@ -60,7 +60,7 @@ The same reading holds at the nucleotide resolution of Chapter 5, where the exte
 
 Three more events reshape the order without creating or destroying genes:
 
-- **Inversion.** Reverse a segment in place, flipping every gene's strand: `2+ 3+ 4+` becomes `4− 3− 2−` ([Ge9](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_inversion-->).
+- **Inversion.** Reverse a segment in place, flipping every gene's strand: `2+ 3+ 4+` becomes `4− 3− 2−` ([Ge9](https://aadavin.github.io/ZOMBI2/gallery.html#genomes)<!--gallery:genome_inversion-->).
 - **Transposition.** Cut a segment out and reinsert it **elsewhere on the same chromosome**, at a spot drawn uniformly over what is left after the cut.
 - **Translocation.** Move a segment to a **different chromosome** of the same genome, landing at a random position. A no-op if the genome has only one chromosome.
 

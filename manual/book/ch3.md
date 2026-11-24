@@ -36,7 +36,7 @@ The burn-in's events carry negative times in `genome_events.tsv`, on the root's 
 
 ### Four things to know
 
-- **Families can evolve at different rates.** This can be used to simulate for example genomes with a core and an accessory part ([Ge4](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_pangenome_by_family-->). Appendix A gives the spelling.
+- **Families can evolve at different rates.** This can be used to simulate for example genomes with a core and an accessory part ([Ge4](https://aadavin.github.io/ZOMBI2/gallery.html#genomes)<!--gallery:genome_pangenome_by_family-->). Appendix A gives the spelling.
 - **A family's copies within one genome are capped**, at `max_family_size=10` by default, because a duplication rate above the loss rate can grow exponentially.
 - **There is no minimum number of genes.** Loss is counted per copy and the last copy is a copy like any other, so a high loss rate can leave a lineage with nothing. `genome_summary.json` reports `empty_genomes` and the command warns, because an empty genome is otherwise invisible.[^chromosome-minimum]
 - **ZOMBI2 produces both complete and extant trees for the gene trees too.** The complete tree keeps every gene lineage; the extant tree keeps only the copies that survive to the present. Both are described below.
@@ -49,7 +49,7 @@ By default, duplication, transfer and loss are counted **per copy**: a family wi
 
 The three events (D, T, L) can also be expressed as `PerLineage`, but that implies a different model of evolution. For example, `PerCopy(0.25)` means that every copy can undergo an event independently, so a big genome loses often; `PerLineage(0.25)` is different: the lineage loses at that rate whatever it holds, so deletion-biased genomes lose at their own pace and shrinking does not slow them down. In a genome of a hundred genes the same `0.25` is a total loss rate of 25 one way and of 0.25 the other, a hundredfold apart.
 
-A rate can also depend on **time**, on **the clade where the gene is**, or on a different level. Using `changing_at` on a rate makes it change at set moments: the skyline genome, fast early and slow later; `Clade` multiplies a rate inside a named subtree of the species tree, and the two compose ([Ge5](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_clade_transition-->); and `scaled_by` makes a rate depend on a driver, which is Chapter 8. See Appendix A for more details.[^origins]
+A rate can also depend on **time**, on **the clade where the gene is**, or on a different level. Using `changing_at` on a rate makes it change at set moments: the skyline genome, fast early and slow later; `Clade` multiplies a rate inside a named subtree of the species tree, and the two compose ([Ge5](https://aadavin.github.io/ZOMBI2/gallery.html#genomes)<!--gallery:genome_clade_transition-->); and `scaled_by` makes a rate depend on a driver, which is Chapter 8. See Appendix A for more details.[^origins]
 
 [^origins]: `families=[family("toxin", origin=("n1", 0.4))]` declares a family and places it instead of leaving it to the rate: it originates on the lineage you name, at the time you give, keeps its name, and **adds to** whatever `initial_families` and `origination` produce. With both of those at zero the tree carries exactly the families you declared.
 
@@ -88,7 +88,7 @@ Transfers can arrive **from a lineage that later goes extinct** [@szollosi2013lg
 
 ### Transfer between named clades
 
-`"distance"` biases transfer by relatedness, but sometimes you want to name the groups yourself: "let genes flow between these two clades, and nowhere else." `Clades` does that. You name each clade, by a few of its tips (the clade is the subtree below their MRCA) or by the id of its root node. Either way a lineage is written as the `n<id>` label the tree files use, read off `species_complete.nwk` or `species_events.tsv`, so the example below names each clade by two of its tips. The weights go in a `Between` kernel, a table with one weight for each ordered **(donor clade, recipient clade)** pair ([Ge3](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_transfer_highway-->).
+`"distance"` biases transfer by relatedness, but sometimes you want to name the groups yourself: "let genes flow between these two clades, and nowhere else." `Clades` does that. You name each clade, by a few of its tips (the clade is the subtree below their MRCA) or by the id of its root node. Either way a lineage is written as the `n<id>` label the tree files use, read off `species_complete.nwk` or `species_events.tsv`, so the example below names each clade by two of its tips. The weights go in a `Between` kernel, a table with one weight for each ordered **(donor clade, recipient clade)** pair ([Ge3](https://aadavin.github.io/ZOMBI2/gallery.html#genomes)<!--gallery:genome_transfer_highway-->).
 
 ```python
 from zombi2 import species, genomes
