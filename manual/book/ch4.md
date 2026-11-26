@@ -1,8 +1,8 @@
-# Genomes II: ordered
+# Genomes II: gene order
 
-The previous chapter put genes on the tree as a *bag of families*, how many copies of each, and nothing more. This chapter gives them **structure**. A genome becomes one or more **chromosomes**, each an ordered row of genes, and each gene carries a strand, the direction it reads in. This is the **ordered** resolution.
+The previous chapter put genes on the tree as a *bag of families*, how many copies of each, and nothing more. This chapter gives them **structure**. A genome becomes one or more **chromosomes**, each an ordered row of genes, and each gene carries a strand, the direction it reads in. This is the **gene-order resolution**, selected with `--resolution ordered` on the command line and `simulate_genomes_ordered` in Python.
 
-![An example of an ordered genome. Genes acquire a relative position to each other in a circular chromosome. The orientation of each gene is also registered.](figures/ordered_chromosome.pdf){width=58%}
+![A genome represented at gene-order resolution. Genes acquire a relative position to each other in a circular chromosome. The orientation of each gene is also registered.](figures/ordered_chromosome.pdf){width=58%}
 
 ## Chromosomes split, merge, appear and die
 
@@ -125,7 +125,7 @@ The truth such a benchmark reads is the `event` column of `genome_events.tsv`: e
 
 ## On the command line
 
-The ordered resolution is `--resolution ordered`. It adds two sets of flags to the Chapter 3 events, each still a plain number: the chromosome flags, `--chromosomes N` and `--topology` taking `circular` (the default), `linear`, or a comma-separated list of one per chromosome; and the **extent** flags, `--inversion-extent`, `--duplication-extent` and the rest, each the mean number of genes an event takes. Leave an extent out and every event takes a single gene, which for an inversion means flipping one gene's strand and shuffling nothing:
+The gene-order resolution is selected with `--resolution ordered`. It adds two sets of flags to the Chapter 3 events, each still a plain number: the chromosome flags, `--chromosomes N` and `--topology` taking `circular` (the default), `linear`, or a comma-separated list of one per chromosome; and the **extent** flags, `--inversion-extent`, `--duplication-extent` and the rest, each the mean number of genes an event takes. Leave an extent out and every event takes a single gene, which for an inversion means flipping one gene's strand and shuffling nothing:
 
 ```bash
 # chromosomes split and merge along the tree

@@ -22,11 +22,11 @@ By default, this is the scope ZOMBI2 uses at each level:
 | Level | Counted per | The rates it applies to |
 |---|---|---|
 | Species | lineage | `birth`, `death` |
-| Genomes, family and ordered | copy | `duplication`, `transfer`, `loss` |
-| Genomes, family and ordered | lineage | `origination` |
-| Genomes, ordered | copy | `inversion`, `transposition`, `translocation` |
-| Genomes, ordered | chromosome | `fission`, `fusion`, `chromosome_loss` |
-| Genomes, ordered | lineage | `chromosome_origination` |
+| Genomes, family and gene order | copy | `duplication`, `transfer`, `loss` |
+| Genomes, family and gene order | lineage | `origination` |
+| Genomes, gene order | copy | `inversion`, `transposition`, `translocation` |
+| Genomes, gene order | chromosome | `fission`, `fusion`, `chromosome_loss` |
+| Genomes, gene order | lineage | `chromosome_origination` |
 | Genomes, nucleotide | lineage | `duplication`, `transfer`, `loss`, `origination`, `inversion`, `transposition`, `translocation`, `chromosome_origination`, `insertion`, `deletion` |
 | Genomes, nucleotide | chromosome | `fission`, `fusion`, `chromosome_loss` |
 | Sequences | site | `substitution` (times a clock) |
@@ -44,8 +44,8 @@ different spelling:
 | Rate | Also accepts | What that means |
 |---|---|---|
 | Species `birth`, `death` | `Global` | one budget for the whole tree: linear growth, not exponential |
-| Genomes, family and ordered: `duplication`, `transfer`, `loss` | `PerLineage` | a fixed budget per lineage: the rate is the same however much the genome holds |
-| Genomes, ordered: `inversion`, `transposition`, `translocation` | `PerLineage` | the same, for the rearrangements |
+| Genomes, family and gene order: `duplication`, `transfer`, `loss` | `PerLineage` | a fixed budget per lineage: the rate is the same however much the genome holds |
+| Genomes, gene order: `inversion`, `transposition`, `translocation` | `PerLineage` | the same, for the rearrangements |
 
 The difference is large and worth stating plainly. `loss = PerCopy(0.25)` puts every copy
 independently at risk, so a genome of a thousand genes loses ten times as often as one of a hundred.
@@ -115,7 +115,7 @@ to hit the `max_lineages` guard. Mean-correcting keeps the rate honest per linea
 the driver's state says it is. A driver can also come from the tree itself: `Clade({"fast": ["n12",
 "n27"]})` names a subtree by its tips, or by a node id, and takes membership from the tree the run is
 already walking, with every unnamed lineage in `"rest"`. A driver is not confined to a rate: the same
-factor multiplies an **extent** at the ordered and nucleotide resolutions, where an extent takes only
+factor multiplies an **extent** at the gene-order and nucleotide resolutions, where an extent takes only
 `changing_at` and `scaled_by`: a per-family draw has no one family to read (a segment covers several),
 and `set_by` on an extent is not built. Drivers also go on `transfer_to`, written
 `Recipients().weighted_by(driver, mapping)` rather than `scaled_by` because there the numbers are
@@ -158,7 +158,7 @@ below can do it and the rest refuse. This is what each accepts today:
 | Level | The verbs it accepts |
 |---|---|
 | Species | `changing_at` · `scaled_by(TotalDiversity(...))` · `varying_among('lineages', Drift(...))` · `varying_among('lineages', ...)` |
-| Genomes, family and ordered | `changing_at` · `scaled_by` · `set_by` · `varying_among('families', ...)` · `varying_among('lineages', ...)` · `varying_among('lineages', Drift(...))` |
+| Genomes, family and gene order | `changing_at` · `scaled_by` · `set_by` · `varying_among('families', ...)` · `varying_among('lineages', ...)` · `varying_among('lineages', Drift(...))` |
 | Genomes, nucleotide | `changing_at` · `scaled_by` |
 | Sequences | `varying_among('lineages', ...)` · `varying_among('lineages', Drift(...))` · `varying_among('families', ...)` · `scaled_by` |
 | Traits, continuous `rate` | `changing_at` · `varying_among('lineages', Drift(...))` · `scaled_by(TotalDiversity(...))` · `scaled_by` · `set_by` |

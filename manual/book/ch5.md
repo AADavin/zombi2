@@ -37,7 +37,7 @@ Means over about 1,500 inversions each. A 500 bp request has mostly spacer to la
 1 000 000 bp  ->  77 inversions
 ```
 
-The chromosome rates are the exception: `fission`, `fusion` and `chromosome_loss` are counted **per chromosome**, and `chromosome_origination` per lineage. A fusion joins two chromosomes of the **same topology**, for the same reason it does at the ordered resolution: a ring and a molecule with two ends cannot become one molecule.
+The chromosome rates are the exception: `fission`, `fusion` and `chromosome_loss` are counted **per chromosome**, and `chromosome_origination` per lineage. A fusion joins two chromosomes of the **same topology**, for the same reason it does at the gene-order resolution: a ring and a molecule with two ends cannot become one molecule.
 
 ## Insertions and deletions
 

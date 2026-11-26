@@ -204,7 +204,7 @@ sequences.simulate_sequences(my_genomes, model=lg(), length=300,
                              family_multipliers={0: 0.2, 1: 0.4, "fam2": 3.0})
 ```
 
-A **nucleotide** run refuses a per-family multiplier, because it evolves blocks rather than gene families: a block is one gene, or one stretch of spacer between two genes. In a nucleotide run, vary the rate among lineages instead, or start from a family or ordered run.
+A **nucleotide** run refuses a per-family multiplier, because it evolves blocks rather than gene families: a block is one gene, or one stretch of spacer between two genes. In a nucleotide run, vary the rate among lineages instead, or start from a family or gene-order run.
 
 ### Setting the rate, or letting the divergence set it
 

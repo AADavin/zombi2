@@ -349,7 +349,7 @@ Sequences, and variable-rates BM at Traits. Three rules for the next one:
 
 ## 6. Extents
 
-An event that acts on a **segment** — a run of genes at the ordered resolution, an arc of DNA at the
+An event that acts on a **segment** — a run of genes at the gene-order resolution, an arc of DNA at the
 nucleotide one — carries an **extent**: how much it takes once it has started. An extent is written the
 way a rate is, **minus the scope**, because it is already an absolute quantity and has no "per what?"
 to answer:
@@ -364,7 +364,7 @@ extent  =  base × modifiers
   (`changing_at`, `varying_among`, `scaled_by`).
 
 One word, **extent**, at every resolution and for every event. Its **unit is set by the resolution** —
-genes at ordered, base pairs at nucleotide — and needs no word of its own, because fixing that unit is
+genes at gene-order resolution, base pairs at nucleotide resolution — and needs no word of its own, because fixing that unit is
 what a resolution *is*.
 
 **A rate counts starts, not hits.** A rate says how often an event *begins*. A unit lying inside a
@@ -400,7 +400,7 @@ Left column is correct; right column is a fossil to purge.
 |---|---|
 | Species, Genomes, Sequences, Traits (words, plural) | single letters, "Sigma" |
 | level (one of the four) | tier |
-| resolution — family / ordered / nucleotide | "level" for the genome sub-axis; "unordered"; `--genome-model` |
+| resolution — family / gene order / nucleotide; `ordered` in CLI values and Python identifiers | "level" for the genome sub-axis; "unordered"; `--genome-model` |
 | independent / conditioned / joint | pipeline / coevolution (as the framing) |
 | conditioning; joining; a joint model | coevolution (as a category) |
 | conditioning and joining (when the pair needs one name) | coupling (as the framing, a category or a level); the verb stays — "a transfer couples two lineages" |
@@ -414,7 +414,7 @@ Left column is correct; right column is a fossil to purge.
 | mapping — `Table` / `Curve` / `Scalar` / `Between` | response (the coevolve word) |
 | weight — a `transfer_to` number, normalised across candidates | multiplier (there); a base in front of `Recipients()` (there) |
 | rate; effective rate = scope(base) × modifiers | propensity |
-| scope; "per what?" — name a group of rates by the scope they share: **the chromosome rates** (`PerChromosome`), which are not a resolution, since they exist at ordered and nucleotide alike | opportunity; "the chromosome tier" |
+| scope; "per what?" — name a group of rates by the scope they share: **the chromosome rates** (`PerChromosome`), which are not a resolution, since they exist at gene-order and nucleotide alike | opportunity; "the chromosome tier" |
 | verb — what reading a driver does to a parameter: `scaled_by` / `set_by` / `weighted_by`, plus the two shortcuts `varying_among` / `changing_at` | `ScaledBy` / `SetBy` / `Weights` / `OnTime` as names to call; `*` composing a rate |
 | the unit a value varies among, plural: `'lineages'` / `'families'` / `'copies'` / `'sites'` / `'chromosomes'` | `per='family'`; `spread=` for a distribution |
 | extent — how much a segmental event takes | extension; length (for this quantity); size |

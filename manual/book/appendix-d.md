@@ -16,7 +16,7 @@ back.
 
 `zombi2 tools format DIR --format FORMAT` reads a genomes run and writes files derived from its gene
 trees, beside the run under `genomes/`. `--format` is required and takes several at once:
-`--format homology recphylo`. Family and ordered runs rebuild their gene trees from the event log; a
+`--format homology recphylo`. Family and gene-order runs rebuild their gene trees from the event log; a
 nucleotide run recovers them from the genome, one file per **declared gene** (the intergenic spacer is
 not a gene, so it gets none). A nucleotide run that declared no genes at all is one uninterrupted
 intergene, and `format` refuses it: there is nothing to relate. `--from PATH` reads a run elsewhere,

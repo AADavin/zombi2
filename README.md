@@ -78,7 +78,7 @@ run first. The levels you run are composed into one seeded,
   the tree, plus mass extinctions, incomplete sampling and fossils.
 - **[Genomes](https://aadavin.github.io/ZOMBI2/docs/guide/genomes/)** — gene families under
   duplication, transfer, loss and origination, at three resolutions: gene families,
-  [ordered](https://aadavin.github.io/ZOMBI2/docs/guide/genomes-ordered/) chromosomes with
+  [gene order](https://aadavin.github.io/ZOMBI2/docs/guide/genomes-ordered/) and chromosome
   rearrangements, and
   [nucleotide](https://aadavin.github.io/ZOMBI2/docs/guide/genomes-nucleotide/) genomes, with real
   DNA along each chromosome.
@@ -140,7 +140,7 @@ A species tree of a million leaves takes about six seconds. On the same gene-fam
 runs about **210× faster than the legacy ZOMBI1** — both pure Python.
 
 <p align="center">
-  <img alt="ZOMBI2 performance overview: (a) species-tree simulation scaling to millions of tips; (b) genome simulation at the family, ordered and nucleotide resolutions; (c) ZOMBI2 about 210 times faster than the legacy ZOMBI1 on one shared 1,000-tip tree" src="https://raw.githubusercontent.com/AADavin/zombi2/main/assets/performance-overview.svg" width="840">
+  <img alt="ZOMBI2 performance overview: (a) species-tree simulation scaling to millions of tips; (b) genome simulation at the family, gene-order and nucleotide resolutions; (c) ZOMBI2 about 210 times faster than the legacy ZOMBI1 on one shared 1,000-tip tree" src="https://raw.githubusercontent.com/AADavin/zombi2/main/assets/performance-overview.svg" width="840">
 </p>
 
 The numbers behind the figure are in [`assets/performance/`](assets/performance/), one JSON per

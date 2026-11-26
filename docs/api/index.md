@@ -16,14 +16,14 @@ the [user guide](../guide/introduction.md).
 
 ## The entry points
 
-Every run starts here. The genome level has three **resolutions** — family ⊂ ordered ⊂
-nucleotide — with one entry point each, so the resolution is chosen by which function you call.
+Every run starts here. The genome level has three **resolutions** — family ⊂ gene order ⊂
+nucleotide — with one entry point each, so the resolution is chosen by which function you call. The gene-order resolution uses `ordered` in command-line options and Python names.
 
 | Level | Entry point | Returns | Guide |
 |---|---|---|---|
 | Species | [`simulate_species_tree`][zombi2.species.simulate_species_tree] | [`SpeciesResult`][zombi2.species.SpeciesResult] | [Species trees](../guide/species-trees.md) |
 | Genomes · family | [`simulate_genomes_family`][zombi2.genomes.simulate_genomes_family] | [`FamilyGenomesResult`][zombi2.genomes.FamilyGenomesResult] | [Genomes I](../guide/genomes.md) |
-| Genomes · ordered | [`simulate_genomes_ordered`][zombi2.genomes.simulate_genomes_ordered] | [`OrderedGenomesResult`][zombi2.genomes.OrderedGenomesResult] | [Genomes II](../guide/genomes-ordered.md) |
+| Genomes · gene order | [`simulate_genomes_ordered`][zombi2.genomes.simulate_genomes_ordered] | [`OrderedGenomesResult`][zombi2.genomes.OrderedGenomesResult] | [Genomes II](../guide/genomes-ordered.md) |
 | Genomes · nucleotide | [`simulate_genomes_nucleotide`][zombi2.genomes.simulate_genomes_nucleotide] | [`NucleotideGenomesResult`][zombi2.genomes.NucleotideGenomesResult] | [Genomes III](../guide/genomes-nucleotide.md) |
 | Sequences | [`simulate_sequences`][zombi2.sequences.simulate_sequences] | [`SequencesResult`][zombi2.sequences.SequencesResult] | [Sequences](../guide/sequences.md) |
 | Traits · continuous | [`simulate_continuous`][zombi2.traits.simulate_continuous] | [`TraitsResult`][zombi2.traits.TraitsResult] | [Traits](../guide/traits.md) |

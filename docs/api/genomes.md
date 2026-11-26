@@ -1,7 +1,7 @@
 # zombi2.genomes
 
 Level 2: genomes evolving along the species tree. The level has three **resolutions** — family ⊂
-ordered ⊂ nucleotide — and one entry point each; more detail costs more compute, so the resolution
+gene order ⊂ nucleotide — and one entry point each; more detail costs more compute, so the resolution
 is a dial.
 
 ::: zombi2.genomes.simulate_genomes_family

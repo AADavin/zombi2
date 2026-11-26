@@ -17,7 +17,7 @@ existing column's name or its meaning, and no column is removed within a major v
 that reads a column by its header keeps working across upgrades, and one that reads by position, or
 assumes a column count, does not. New columns go at the **end** of the row. The same file already
 differs by resolution, since `genome_events.tsv` has five columns at the family resolution and ten
-at the ordered one, so matching by name is what these tables have always required.
+at the gene-order one, so matching by name is what these tables have always required.
 
 ## Where the files go
 
@@ -72,7 +72,7 @@ form. Beside it, a summary of what came out: `species_summary.json`, `genome_sum
 `sequences_summary.json`, `trait_summary.json`, written at every level, and at all three genome
 resolutions, except by a streamed family run (`zombi2 genomes --stream` at the family resolution),
 which writes each family straight to disk and never holds the whole run to summarise. A streamed
-ordered run writes it. A streamed run also keeps its own `species_complete.nwk` beside its
+gene-order run writes it. A streamed run also keeps its own `species_complete.nwk` beside its
 tables. It still reads the tree from `species/`, as any genomes run does; the copy is so that the
 `genomes/` directory stands alone as the handoff a later level or another tool reads.
 
@@ -201,7 +201,7 @@ branch has a row, extinct ones included. The `lineage` column holds the branch's
 that `genomes.tsv` and the species tree use. A rate that does not vary among lineages is 1.0 on
 every branch. A run whose rates do not vary among lineages writes the header alone. On `transfer`
 the multiplier belongs to the **donor**: it scales how often that branch donates, and `transfer_to`
-still chooses the recipient. An ordered run writes the same file, with a column for each
+still chooses the recipient. A gene-order run writes the same file, with a column for each
 rearrangement and each chromosome event as well. A branch's multiplier scales whatever the event
 acts on. A family's multiplier applies to the genes a segment covers, so it is on the per-gene
 events only, and never on an event that acts on a whole replicon.
@@ -227,7 +227,7 @@ other is what happened.
 
 **`.presence(name)` and `.completion(name)`**: a named family's presence (`present` / `absent`) and
 a declared module's completion (a fraction) along every lineage, for use as a driver (Ch8). Read off
-the families' gene trees, so they change *inside* a branch; the **ordered** resolution gives the same
+the families' gene trees, so they change *inside* a branch; the **gene-order** resolution gives the same
 two.
 
 ### One row per event
@@ -268,8 +268,8 @@ carries two parents, the donor's copy and then the copy it overwrote on the reci
 writes **no separate `loss` row** for the copy it displaced. That death is what the kind means.
 
 The file is time-ordered, one row per event, so counting rows by kind counts events, except at the
-**ordered** resolution, where a segmental event writes one row per gene it covers; dedupe on `time`
-there before counting (the ordered section's Segment note). An absent value is an empty cell. `genome_summary.json` counts the
+**gene-order** resolution, where a segmental event writes one row per gene it covers; dedupe on `time`
+there before counting (the gene-order section's Segment note). An absent value is an empty cell. `genome_summary.json` counts the
 biology instead, and differs in three places: it reports `transfer` as one number over both kinds, it
 counts each replacing transfer's displaced copy under `loss`, and it separates the families the run
 started with (`initial`) from the ones the origination rate made. It also reports `empty_genomes`,
@@ -282,7 +282,7 @@ copies and their parentage. In Python an `Event` is one event; the per-edge reco
 and `zombi2.genomes.events.edges_from_tsv` expands each row into one per edge, which is what the gene
 trees are built from.
 
-## Genomes, ordered: `simulate_genomes_ordered`
+## Genomes, gene order: `simulate_genomes_ordered`
 
 | File | What it holds |
 |---|---|
@@ -355,7 +355,7 @@ From `zombi2 genomes --resolution nucleotide` or `result.write(dir, outputs=[...
 | `genome_events.tsv` | the genealogy, in the format every resolution writes |
 | `block_events.tsv` | this resolution's own record: one row per ancestral interval an event touched |
 | `rearrangement_events.tsv` | inversions, transpositions and translocations, in **physical** coordinates |
-| `chromosome_events.tsv` | chromosome-network edges, same format and same kinds as ordered |
+| `chromosome_events.tsv` | chromosome-network edges, same format and same kinds as gene order |
 | `blocks.tsv` | every node's blocks, ancestors included: `lineage` · `chromosome` · `position` · `source` · `start` · `end` · `strand` · `copy` · `gene` |
 | `genes.tsv` | the declared genes in initial coordinates: `family` · `name` · `source` · `start` · `end` · `strand` (the **coding** strand). Header-only when none were declared |
 | `initial_genome.tsv` | the genome the run **started** with: `chromosome` · `position` · `source` · `start` · `end` · `strand` · `copy` · `gene` |
@@ -412,9 +412,9 @@ empty; a transfer's blocks keep their source coordinates and leave `chromosome` 
 `source`/`start`/`end` are **ancestral** coordinates; the physical ones live in the rearrangement
 log. This is what `read_nucleotide_genomes` replays.
 
-**`rearrangement_events.tsv`**: the same columns the ordered resolution writes with base pairs in
+**`rearrangement_events.tsv`**: the same columns the gene-order resolution writes with base pairs in
 place of genes, along the chromosome as `blocks.tsv` numbers it, plus `cuts`, the **ancestral**
-breakpoints the rearrangement used, which only this resolution can give (the ordered one leaves it
+breakpoints the rearrangement used, which only this resolution can give (the gene-order one leaves it
 blank). No token of its own either: `events` writes all three tables here. A nucleotide translocation
 records no `dest_position`: its blocks keep their source coordinates and the engine places the arc.
 
@@ -426,7 +426,7 @@ numbers the declared gene a block is, 1 upward in declaration order, 0 for space
 this level writes: blocks are not kept maximal during a run, so it grows with their number × every
 node.
 
-**`genome_summary.json`**: `events` counted as *biology* rather than rows (see the ordered section),
+**`genome_summary.json`**: `events` counted as *biology* rather than rows (see the gene-order section),
 `block_events` counting this resolution's own log the same way, `genes` (every gene the run holds,
 those declared at the start and the de-novo ones `origination` added), and base pairs and chromosomes
 per genome. No phyletic profiles here: the unit is the base pair. **The two counters do not bound each
@@ -555,7 +555,7 @@ description. Sequence lines wrap at 70 columns, as in the per-family files.
 replaces `family`.
 
 **`genome_<lineage>.fasta`**: the assembled genome, its blocks concatenated in physical order, for
-every node, extant, extinct and ancestral alike. A family or ordered run has gene families, not
+every node, extant, extinct and ancestral alike. A family or gene-order run has gene families, not
 coordinates, so there is nothing to lay out and no `genomes/` is created. It is the biggest thing this level
 writes, a whole genome times every node. `genome_initial.fasta` is the state the stem leads *from*,
 which is no node's.

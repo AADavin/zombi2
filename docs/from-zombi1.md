@@ -184,7 +184,7 @@ losses straight out of the log therefore comes up short by exactly the number of
 number rather than an error, so check it first.
 
 **Rearrangements are their own file.** An inversion, transposition or translocation begins and ends
-no gene lineage, so it has nothing to put in `parents` and `children`. At the ordered and nucleotide
+no gene lineage, so it has nothing to put in `parents` and `children`. At the gene-order and nucleotide
 resolutions they live in `rearrangement_events.tsv`, which is the one place a branch is still a
 column, because a segment has no name to carry one.
 

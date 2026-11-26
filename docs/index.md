@@ -65,9 +65,9 @@ language models look for.
 - New here? Start with the [**Introduction**](guide/introduction.md), which tours the whole tool in one pass.
 - The level guides — each grows one level and the objects a run returns:
   [**Species trees**](guide/species-trees.md),
-  [**Genomes**](guide/genomes.md) (with [ordered](guide/genomes-ordered.md) and
+  [**Genomes**](guide/genomes.md) (with [gene order](guide/genomes-ordered.md) and
   [nucleotide](guide/genomes-nucleotide.md) resolutions),
   [**Sequences**](guide/sequences.md), and [**Traits**](guide/traits.md).
-- [**Dependent runs**](guide/conditioning.md) — connections that let one level drive another, in ordered runs or in one [**joint**](guide/joining.md) run.
+- [**Dependent runs**](guide/conditioning.md) — connections that let one level drive another, in sequential runs or in one [**joint**](guide/joining.md) run.
 - Reference: the [**API**](api/index.md), the [**output files**](output-files.md) each run writes, and the
   [**tools**](tools.md) that read a finished run.

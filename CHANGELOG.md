@@ -9,6 +9,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+
+- The manual and documentation now call the ordered genome resolution the "gene-order resolution". The command-line value `ordered`, Python API names and output identifiers are unchanged.
+
 ## [0.64.1] - 2026-11-24
 
 ### Fixed

@@ -13,7 +13,7 @@ ZOMBI2 simulates four levels of evolution: **Species**, **Genomes**, **Sequences
 ## The four levels of ZOMBI2
 
 - **Species**, the tree of lineages: a strictly bifurcating rooted tree, with branches measured in time.
-- **Genomes**, the genes that exist in each lineage. Genomes can be simulated at three **resolutions**: **family**, the gene families alone; **ordered**, the genes placed on chromosomes; **nucleotide**, a genome as DNA coordinates (Chapters 3 to 5).
+- **Genomes**, the genes that exist in each lineage. Genomes can be simulated at three **resolutions**: **family**, the gene families alone; **gene order** (`ordered` in ZOMBI2), the genes placed on chromosomes; **nucleotide**, a genome as DNA coordinates (Chapters 3 to 5).
 - **Sequences**, the nucleotides or amino acids of each gene. Sequences evolve on gene trees (which are generated during the genome simulation), so genomes must be simulated first.
 - **Traits**, phenotypes evolving along a tree: body size, optimal growth temperature, the presence or absence of a flagellum. They can be continuous or discrete.
 
@@ -87,7 +87,7 @@ Some questions that can be explored with ZOMBI2:
 
 - **Does a trait actually drive diversification?** Let a trait set the speciation rate, so the tree and the trait grow together, and test whether a state-dependent method recovers the effect.
 
-- **What signal survives in gene order?** With genes placed on chromosomes at the **ordered** genome resolution (Chapter 4), inversions, transpositions and translocations rearrange them, and fissions and fusions change the karyotype itself, so synteny and rearrangement inference methods can be tested.
+- **What signal survives in gene order?** With genes placed on chromosomes at the **gene-order** genome resolution (Chapter 4), inversions, transpositions and translocations rearrange them, and fissions and fusions change the karyotype itself, so synteny and rearrangement inference methods can be tested.
 
 ## Installing it
 

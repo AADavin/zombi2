@@ -7,7 +7,7 @@ Eight chapters and four appendices, one file each:
 | `ch1.md` | Introduction (with the tour of the tool) |
 | `ch2.md` | Species trees |
 | `ch3.md` | Genomes I: gene families |
-| `ch4.md` | Genomes II: ordered |
+| `ch4.md` | Genomes II: gene order |
 | `ch5.md` | Genomes III: nucleotide |
 | `ch6.md` | Sequences |
 | `ch7.md` | Traits |

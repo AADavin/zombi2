@@ -1,6 +1,6 @@
 # Genomes I: gene families
 
-Genomes live inside the species tree, and they can be simulated at three **resolutions**, one per chapter: **family** here, **ordered** in Chapter 4, **nucleotide** in Chapter 5. The simplest is a gene family evolving along the tree; the most detailed tracks every nucleotide across several chromosomes.
+Genomes live inside the species tree, and they can be simulated at three **resolutions**, one per chapter: **family** here, **gene order** in Chapter 4, **nucleotide** in Chapter 5. The simplest is a gene family evolving along the tree; the most detailed tracks every nucleotide across several chromosomes.
 
 The **family** resolution is genomes made of gene families and nothing more: no position along a chromosome, no DNA sequence. Genes can originate anywhere in the tree, and then they evolve by duplication, transfers and losses.
 

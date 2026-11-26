@@ -4,7 +4,7 @@ Timings for the two operations that dominate a run: growing a species tree, and 
 along it.
 
 <figure markdown="span">
-  ![ZOMBI2 performance overview: (a) species-tree simulation scaling to millions of tips; (b) genome simulation at the family, ordered and nucleotide resolutions; (c) ZOMBI2 about 210 times faster than the legacy ZOMBI1 on one shared 1,000-tip tree](img/performance-overview.svg)
+  ![ZOMBI2 performance overview: (a) species-tree simulation scaling to millions of tips; (b) genome simulation at the family, gene-order and nucleotide resolutions; (c) ZOMBI2 about 210 times faster than the legacy ZOMBI1 on one shared 1,000-tip tree](img/performance-overview.svg)
 </figure>
 
 ## What was measured
@@ -18,7 +18,7 @@ tips, then genomes under D = 0.2, T = 0.1, L = 0.25, O = 0.5 from 20 initial fam
 **(b) Genomes, at the three resolutions.** `family` takes 0.32 s at 1,000 tips and 20 s at 10,000.
 `ordered` — the same rates plus inversion = 0.1 — takes 0.68 s at 1,000 tips and 6.9 s at 3,000.
 `nucleotide`, run on an *M. tuberculosis* H37Rv genome (4.41 Mbp), takes 12 s at 1,000 tips and 37 s
-at 3,000. The three share rate *values*, not event counts: family and ordered rates are per gene
+at 3,000. The three share rate *values*, not event counts: family and gene-order rates are per gene
 copy, nucleotide rates are per lineage. The panel therefore compares cost at matched rates, not at
 matched work.
 
