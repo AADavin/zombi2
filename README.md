@@ -70,8 +70,11 @@ run first. The levels you run are composed into one seeded,
 [reproducible](https://aadavin.github.io/ZOMBI2/docs/reproducibility/) run.
 
 <p align="center">
-  <img alt="One simulated dataset at all four levels: a species tree with its extinct lineages, the gene order of every surviving genome with homologues linked, the alignment behind one gene family, and two traits drifting together" src="https://raw.githubusercontent.com/AADavin/zombi2/main/assets/overview.png" width="900">
+  <img alt="Four simulation levels on one species history: surviving and extinct lineages, extant gene orders, a gene tree with its 72-column DNA alignment, and two correlated continuous traits" src="https://raw.githubusercontent.com/AADavin/zombi2/main/assets/overview.png" width="900">
 </p>
+
+The sequence panel uses an illustrative threefold rate multiplier on the two basal paths.
+The [editable SVG](assets/overview.svg) and [simulation provenance](assets/overview.json) accompany the figure.
 
 - **[Species trees](https://aadavin.github.io/ZOMBI2/docs/guide/species-trees/)** — a
   birth–death process with rates that can shift in time, saturate with diversity or drift down

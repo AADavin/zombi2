@@ -1,0 +1,27 @@
+{
+  "description": "Approved manuscript Figure 1, also used for the README overview.",
+  "species_and_genomes": {
+    "zombi2": "0.22.0",
+    "species_seed": 56,
+    "genome_seed": 5,
+    "extant_tips": 30,
+    "extinct_tips": 16
+  },
+  "sequences": {
+    "zombi2": "0.64.1",
+    "seed": 7,
+    "model": "JC69 with indels",
+    "basal_path_substitution_multiplier": 3,
+    "alignment_columns": 72,
+    "note": "Rate multiplier is illustrative; it is not an inferred branch-length change."
+  },
+  "traits": {
+    "zombi2": "0.54.0",
+    "seed": 1,
+    "model": "correlated Brownian motion",
+    "increment_correlation": 0.9
+  },
+  "svg_sha256": "b8a5272b965f87984f3f4eba7a4ee2f4d875aa4c8f35e4736199a26bdfead729",
+  "export_command": "python figures/scripts/fig_overview.py",
+  "full_simulation_inputs": "Manuscript Supplementary Data S1: figure-review/figure1-2026-11-26 and reproducibility/figure1_sequences_revision.py"
+}
