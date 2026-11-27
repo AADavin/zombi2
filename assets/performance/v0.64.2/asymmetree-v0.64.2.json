@@ -1,0 +1,2686 @@
+{
+  "env": {
+    "timestamp_utc": "2026-11-27T07:10:43.888703+00:00",
+    "python": "3.12.2 | packaged by conda-forge | (main, Feb 16 2024, 20:54:21) [Clang 16.0.6 ]",
+    "numpy": "2.5.1",
+    "zombi2": "0.64.2",
+    "zombi2_source": "/Users/aadria/.codex/visualizations/2026/10/23/01a1680b-570b-7d73-a4bc-5d1a9e296925/zombi2-paper/review/2026-11-27/v0.64.2-run/source/zombi2/__init__.py",
+    "source_ref": "v0.64.2",
+    "source_commit": "047ce05fd96362439a9b9f633b13ce0cfd45f94e",
+    "asymmetree": "2.3.1",
+    "platform": "macOS-27.2.1-arm64-arm-64bit",
+    "processor": "arm",
+    "cpu_count": 10,
+    "loadavg": [
+      3.2705078125,
+      17.85302734375,
+      25.267578125
+    ],
+    "gc_enabled": true,
+    "harness_sha256": "c23b1fa98cbaa70f615544d87e4e5169dc7caf8b72ee9d428f0429c288e9a8a9"
+  },
+  "task": "DTL simulation including complete gene-tree materialization",
+  "rates": {
+    "duplication": 0.5,
+    "transfer": 0.3,
+    "loss": 0.6,
+    "origination": 0.0
+  },
+  "replicates": 7,
+  "rows": [
+    {
+      "tips": 200,
+      "families": 50,
+      "replicate": 0,
+      "tree": {
+        "tips": 200,
+        "seed": 20261223,
+        "age": 1.0,
+        "total_branch_length": 80.82733903676166,
+        "sha256": "1e0effa116005ca75c444ab7064c2675229762e694253f5d6ed3cfb5b54f0c51"
+      },
+      "seed": 1000,
+      "loadavg": [
+        3.2705078125,
+        17.85302734375,
+        25.267578125
+      ],
+      "order": [
+        "zombi2",
+        "asymmetree"
+      ],
+      "zombi2": {
+        "simulation_s": 0.056486708999955226,
+        "complete_s": 0.09470754200003739,
+        "gene_tree_leaves": 15587,
+        "families": 50,
+        "events": {
+          "origination": 50,
+          "speciation": 11727,
+          "loss": 2883,
+          "duplication": 2365,
+          "transfer_additive": 1445
+        }
+      },
+      "asymmetree": {
+        "complete_s": 0.12671766599999046,
+        "gene_tree_leaves": 14685,
+        "families": 50,
+        "events": {
+          "S": 22933,
+          "L": 2764,
+          "D": 2255,
+          "H": 1368
+        }
+      }
+    },
+    {
+      "tips": 200,
+      "families": 50,
+      "replicate": 1,
+      "tree": {
+        "tips": 200,
+        "seed": 20261223,
+        "age": 1.0,
+        "total_branch_length": 80.82733903676166,
+        "sha256": "1e0effa116005ca75c444ab7064c2675229762e694253f5d6ed3cfb5b54f0c51"
+      },
+      "seed": 1001,
+      "loadavg": [
+        3.2705078125,
+        17.85302734375,
+        25.267578125
+      ],
+      "order": [
+        "asymmetree",
+        "zombi2"
+      ],
+      "asymmetree": {
+        "complete_s": 0.1327318749999904,
+        "gene_tree_leaves": 15694,
+        "families": 50,
+        "events": {
+          "S": 24654,
+          "L": 2846,
+          "H": 1394,
+          "D": 2444
+        }
+      },
+      "zombi2": {
+        "simulation_s": 0.056439875000023676,
+        "complete_s": 0.10298012500004461,
+        "gene_tree_leaves": 15347,
+        "families": 50,
+        "events": {
+          "origination": 50,
+          "speciation": 11514,
+          "loss": 2826,
+          "duplication": 2371,
+          "transfer_additive": 1412
+        }
+      }
+    },
+    {
+      "tips": 200,
+      "families": 50,
+      "replicate": 2,
+      "tree": {
+        "tips": 200,
+        "seed": 20261223,
+        "age": 1.0,
+        "total_branch_length": 80.82733903676166,
+        "sha256": "1e0effa116005ca75c444ab7064c2675229762e694253f5d6ed3cfb5b54f0c51"
+      },
+      "seed": 1002,
+      "loadavg": [
+        3.2705078125,
+        17.85302734375,
+        25.267578125
+      ],
+      "order": [
+        "zombi2",
+        "asymmetree"
+      ],
+      "zombi2": {
+        "simulation_s": 0.05551683299995602,
+        "complete_s": 0.09200479099990844,
+        "gene_tree_leaves": 14933,
+        "families": 50,
+        "events": {
+          "origination": 50,
+          "speciation": 11046,
+          "loss": 2717,
+          "duplication": 2422,
+          "transfer_additive": 1415
+        }
+      },
+      "asymmetree": {
+        "complete_s": 0.12320333399998162,
+        "gene_tree_leaves": 14798,
+        "families": 50,
+        "events": {
+          "S": 23064,
+          "L": 2804,
+          "H": 1392,
+          "D": 2286
+        }
+      }
+    },
+    {
+      "tips": 200,
+      "families": 50,
+      "replicate": 3,
+      "tree": {
+        "tips": 200,
+        "seed": 20261223,
+        "age": 1.0,
+        "total_branch_length": 80.82733903676166,
+        "sha256": "1e0effa116005ca75c444ab7064c2675229762e694253f5d6ed3cfb5b54f0c51"
+      },
+      "seed": 1003,
+      "loadavg": [
+        3.2705078125,
+        17.85302734375,
+        25.267578125
+      ],
+      "order": [
+        "asymmetree",
+        "zombi2"
+      ],
+      "asymmetree": {
+        "complete_s": 0.11951504099999966,
+        "gene_tree_leaves": 14387,
+        "families": 50,
+        "events": {
+          "S": 22564,
+          "H": 1325,
+          "L": 2614,
+          "D": 2221
+        }
+      },
+      "zombi2": {
+        "simulation_s": 0.05449041700001089,
+        "complete_s": 0.09094025000001693,
+        "gene_tree_leaves": 14962,
+        "families": 50,
+        "events": {
+          "origination": 50,
+          "speciation": 11290,
+          "loss": 2753,
+          "duplication": 2250,
+          "transfer_additive": 1372
+        }
+      }
+    },
+    {
+      "tips": 200,
+      "families": 50,
+      "replicate": 4,
+      "tree": {
+        "tips": 200,
+        "seed": 20261223,
+        "age": 1.0,
+        "total_branch_length": 80.82733903676166,
+        "sha256": "1e0effa116005ca75c444ab7064c2675229762e694253f5d6ed3cfb5b54f0c51"
+      },
+      "seed": 1004,
+      "loadavg": [
+        3.2705078125,
+        17.85302734375,
+        25.267578125
+      ],
+      "order": [
+        "zombi2",
+        "asymmetree"
+      ],
+      "zombi2": {
+        "simulation_s": 0.05546462499989957,
+        "complete_s": 0.09220412499996655,
+        "gene_tree_leaves": 15375,
+        "families": 50,
+        "events": {
+          "origination": 50,
+          "speciation": 11553,
+          "duplication": 2399,
+          "transfer_additive": 1373,
+          "loss": 2899
+        }
+      },
+      "asymmetree": {
+        "complete_s": 0.13111020899998493,
+        "gene_tree_leaves": 16033,
+        "families": 50,
+        "events": {
+          "S": 25049,
+          "L": 2959,
+          "D": 2543,
+          "H": 1465
+        }
+      }
+    },
+    {
+      "tips": 200,
+      "families": 50,
+      "replicate": 5,
+      "tree": {
+        "tips": 200,
+        "seed": 20261223,
+        "age": 1.0,
+        "total_branch_length": 80.82733903676166,
+        "sha256": "1e0effa116005ca75c444ab7064c2675229762e694253f5d6ed3cfb5b54f0c51"
+      },
+      "seed": 1005,
+      "loadavg": [
+        3.2705078125,
+        17.85302734375,
+        25.267578125
+      ],
+      "order": [
+        "asymmetree",
+        "zombi2"
+      ],
+      "asymmetree": {
+        "complete_s": 0.1306838749999315,
+        "gene_tree_leaves": 15566,
+        "families": 50,
+        "events": {
+          "S": 24310,
+          "D": 2430,
+          "L": 2855,
+          "H": 1487
+        }
+      },
+      "zombi2": {
+        "simulation_s": 0.053431499999987864,
+        "complete_s": 0.08828133300005447,
+        "gene_tree_leaves": 14319,
+        "families": 50,
+        "events": {
+          "origination": 50,
+          "speciation": 10639,
+          "loss": 2660,
+          "duplication": 2302,
+          "transfer_additive": 1328
+        }
+      }
+    },
+    {
+      "tips": 200,
+      "families": 50,
+      "replicate": 6,
+      "tree": {
+        "tips": 200,
+        "seed": 20261223,
+        "age": 1.0,
+        "total_branch_length": 80.82733903676166,
+        "sha256": "1e0effa116005ca75c444ab7064c2675229762e694253f5d6ed3cfb5b54f0c51"
+      },
+      "seed": 1006,
+      "loadavg": [
+        3.2705078125,
+        17.85302734375,
+        25.267578125
+      ],
+      "order": [
+        "zombi2",
+        "asymmetree"
+      ],
+      "zombi2": {
+        "simulation_s": 0.05428549999999177,
+        "complete_s": 0.09021925000001829,
+        "gene_tree_leaves": 14832,
+        "families": 50,
+        "events": {
+          "origination": 50,
+          "speciation": 11057,
+          "duplication": 2352,
+          "loss": 2729,
+          "transfer_additive": 1373
+        }
+      },
+      "asymmetree": {
+        "complete_s": 0.12092958400000953,
+        "gene_tree_leaves": 14609,
+        "families": 50,
+        "events": {
+          "S": 22886,
+          "H": 1328,
+          "D": 2240,
+          "L": 2714
+        }
+      }
+    },
+    {
+      "tips": 200,
+      "families": 100,
+      "replicate": 0,
+      "tree": {
+        "tips": 200,
+        "seed": 20261223,
+        "age": 1.0,
+        "total_branch_length": 80.82733903676166,
+        "sha256": "1e0effa116005ca75c444ab7064c2675229762e694253f5d6ed3cfb5b54f0c51"
+      },
+      "seed": 1000,
+      "loadavg": [
+        3.2705078125,
+        17.85302734375,
+        25.267578125
+      ],
+      "order": [
+        "zombi2",
+        "asymmetree"
+      ],
+      "zombi2": {
+        "simulation_s": 0.10936545800007025,
+        "complete_s": 0.20174179100001766,
+        "gene_tree_leaves": 29995,
+        "families": 100,
+        "events": {
+          "origination": 100,
+          "speciation": 22428,
+          "loss": 5602,
+          "duplication": 4700,
+          "transfer_additive": 2767
+        }
+      },
+      "asymmetree": {
+        "complete_s": 0.2554077919999145,
+        "gene_tree_leaves": 29339,
+        "families": 100,
+        "events": {
+          "S": 45851,
+          "L": 5494,
+          "D": 4480,
+          "H": 2753
+        }
+      }
+    },
+    {
+      "tips": 200,
+      "families": 100,
+      "replicate": 1,
+      "tree": {
+        "tips": 200,
+        "seed": 20261223,
+        "age": 1.0,
+        "total_branch_length": 80.82733903676166,
+        "sha256": "1e0effa116005ca75c444ab7064c2675229762e694253f5d6ed3cfb5b54f0c51"
+      },
+      "seed": 1001,
+      "loadavg": [
+        3.2705078125,
+        17.85302734375,
+        25.267578125
+      ],
+      "order": [
+        "asymmetree",
+        "zombi2"
+      ],
+      "asymmetree": {
+        "complete_s": 0.26170954200006236,
+        "gene_tree_leaves": 30575,
+        "families": 100,
+        "events": {
+          "S": 47895,
+          "L": 5602,
+          "H": 2761,
+          "D": 4792
+        }
+      },
+      "zombi2": {
+        "simulation_s": 0.10904512499996599,
+        "complete_s": 0.2025264999999763,
+        "gene_tree_leaves": 29954,
+        "families": 100,
+        "events": {
+          "origination": 100,
+          "speciation": 22412,
+          "loss": 5671,
+          "duplication": 4624,
+          "transfer_additive": 2818
+        }
+      }
+    },
+    {
+      "tips": 200,
+      "families": 100,
+      "replicate": 2,
+      "tree": {
+        "tips": 200,
+        "seed": 20261223,
+        "age": 1.0,
+        "total_branch_length": 80.82733903676166,
+        "sha256": "1e0effa116005ca75c444ab7064c2675229762e694253f5d6ed3cfb5b54f0c51"
+      },
+      "seed": 1002,
+      "loadavg": [
+        3.2705078125,
+        17.85302734375,
+        25.267578125
+      ],
+      "order": [
+        "zombi2",
+        "asymmetree"
+      ],
+      "zombi2": {
+        "simulation_s": 0.11370212500003163,
+        "complete_s": 0.21212437500003034,
+        "gene_tree_leaves": 31276,
+        "families": 100,
+        "events": {
+          "origination": 100,
+          "speciation": 23313,
+          "loss": 5897,
+          "duplication": 4938,
+          "transfer_additive": 2925
+        }
+      },
+      "asymmetree": {
+        "complete_s": 0.2586356670000214,
+        "gene_tree_leaves": 29703,
+        "families": 100,
+        "events": {
+          "S": 46382,
+          "L": 5580,
+          "H": 2731,
+          "D": 4613
+        }
+      }
+    },
+    {
+      "tips": 200,
+      "families": 100,
+      "replicate": 3,
+      "tree": {
+        "tips": 200,
+        "seed": 20261223,
+        "age": 1.0,
+        "total_branch_length": 80.82733903676166,
+        "sha256": "1e0effa116005ca75c444ab7064c2675229762e694253f5d6ed3cfb5b54f0c51"
+      },
+      "seed": 1003,
+      "loadavg": [
+        3.48876953125,
+        17.65576171875,
+        25.154296875
+      ],
+      "order": [
+        "asymmetree",
+        "zombi2"
+      ],
+      "asymmetree": {
+        "complete_s": 0.2771976669999958,
+        "gene_tree_leaves": 29316,
+        "families": 100,
+        "events": {
+          "S": 45905,
+          "H": 2682,
+          "L": 5399,
+          "D": 4546
+        }
+      },
+      "zombi2": {
+        "simulation_s": 0.11942245900002035,
+        "complete_s": 0.23598325000000386,
+        "gene_tree_leaves": 29938,
+        "families": 100,
+        "events": {
+          "origination": 100,
+          "speciation": 22438,
+          "loss": 5650,
+          "transfer_additive": 2732,
+          "duplication": 4668
+        }
+      }
+    },
+    {
+      "tips": 200,
+      "families": 100,
+      "replicate": 4,
+      "tree": {
+        "tips": 200,
+        "seed": 20261223,
+        "age": 1.0,
+        "total_branch_length": 80.82733903676166,
+        "sha256": "1e0effa116005ca75c444ab7064c2675229762e694253f5d6ed3cfb5b54f0c51"
+      },
+      "seed": 1004,
+      "loadavg": [
+        3.48876953125,
+        17.65576171875,
+        25.154296875
+      ],
+      "order": [
+        "zombi2",
+        "asymmetree"
+      ],
+      "zombi2": {
+        "simulation_s": 0.12002449999999953,
+        "complete_s": 0.24103504200002135,
+        "gene_tree_leaves": 30193,
+        "families": 100,
+        "events": {
+          "origination": 100,
+          "speciation": 22679,
+          "duplication": 4619,
+          "transfer_additive": 2795,
+          "loss": 5552
+        }
+      },
+      "asymmetree": {
+        "complete_s": 0.32719658399992113,
+        "gene_tree_leaves": 31538,
+        "families": 100,
+        "events": {
+          "S": 49058,
+          "L": 5960,
+          "D": 5024,
+          "H": 2934
+        }
+      }
+    },
+    {
+      "tips": 200,
+      "families": 100,
+      "replicate": 5,
+      "tree": {
+        "tips": 200,
+        "seed": 20261223,
+        "age": 1.0,
+        "total_branch_length": 80.82733903676166,
+        "sha256": "1e0effa116005ca75c444ab7064c2675229762e694253f5d6ed3cfb5b54f0c51"
+      },
+      "seed": 1005,
+      "loadavg": [
+        3.48876953125,
+        17.65576171875,
+        25.154296875
+      ],
+      "order": [
+        "asymmetree",
+        "zombi2"
+      ],
+      "asymmetree": {
+        "complete_s": 0.4230085420000478,
+        "gene_tree_leaves": 32125,
+        "families": 100,
+        "events": {
+          "S": 50175,
+          "D": 5069,
+          "L": 5861,
+          "H": 3045
+        }
+      },
+      "zombi2": {
+        "simulation_s": 0.12279962499997055,
+        "complete_s": 0.25195158299993636,
+        "gene_tree_leaves": 31584,
+        "families": 100,
+        "events": {
+          "origination": 100,
+          "speciation": 23598,
+          "loss": 5905,
+          "transfer_additive": 2973,
+          "duplication": 4913
+        }
+      }
+    },
+    {
+      "tips": 200,
+      "families": 100,
+      "replicate": 6,
+      "tree": {
+        "tips": 200,
+        "seed": 20261223,
+        "age": 1.0,
+        "total_branch_length": 80.82733903676166,
+        "sha256": "1e0effa116005ca75c444ab7064c2675229762e694253f5d6ed3cfb5b54f0c51"
+      },
+      "seed": 1006,
+      "loadavg": [
+        3.48876953125,
+        17.65576171875,
+        25.154296875
+      ],
+      "order": [
+        "zombi2",
+        "asymmetree"
+      ],
+      "zombi2": {
+        "simulation_s": 0.11977604100002281,
+        "complete_s": 0.2222129159999895,
+        "gene_tree_leaves": 30355,
+        "families": 100,
+        "events": {
+          "origination": 100,
+          "speciation": 22787,
+          "duplication": 4659,
+          "transfer_additive": 2809,
+          "loss": 5565
+        }
+      },
+      "asymmetree": {
+        "complete_s": 0.25917245799996635,
+        "gene_tree_leaves": 29404,
+        "families": 100,
+        "events": {
+          "S": 45847,
+          "H": 2751,
+          "D": 4582,
+          "L": 5528
+        }
+      }
+    },
+    {
+      "tips": 200,
+      "families": 200,
+      "replicate": 0,
+      "tree": {
+        "tips": 200,
+        "seed": 20261223,
+        "age": 1.0,
+        "total_branch_length": 80.82733903676166,
+        "sha256": "1e0effa116005ca75c444ab7064c2675229762e694253f5d6ed3cfb5b54f0c51"
+      },
+      "seed": 1000,
+      "loadavg": [
+        3.48876953125,
+        17.65576171875,
+        25.154296875
+      ],
+      "order": [
+        "zombi2",
+        "asymmetree"
+      ],
+      "zombi2": {
+        "simulation_s": 0.23197495899989917,
+        "complete_s": 0.4758286669999734,
+        "gene_tree_leaves": 61062,
+        "families": 200,
+        "events": {
+          "origination": 200,
+          "speciation": 45807,
+          "loss": 11403,
+          "duplication": 9402,
+          "transfer_additive": 5653
+        }
+      },
+      "asymmetree": {
+        "complete_s": 0.6042490000000953,
+        "gene_tree_leaves": 60410,
+        "families": 200,
+        "events": {
+          "S": 94298,
+          "L": 11276,
+          "D": 9315,
+          "H": 5731
+        }
+      }
+    },
+    {
+      "tips": 200,
+      "families": 200,
+      "replicate": 1,
+      "tree": {
+        "tips": 200,
+        "seed": 20261223,
+        "age": 1.0,
+        "total_branch_length": 80.82733903676166,
+        "sha256": "1e0effa116005ca75c444ab7064c2675229762e694253f5d6ed3cfb5b54f0c51"
+      },
+      "seed": 1001,
+      "loadavg": [
+        3.689453125,
+        17.4619140625,
+        25.0419921875
+      ],
+      "order": [
+        "asymmetree",
+        "zombi2"
+      ],
+      "asymmetree": {
+        "complete_s": 0.6114403750000292,
+        "gene_tree_leaves": 61502,
+        "families": 200,
+        "events": {
+          "S": 96429,
+          "L": 11262,
+          "H": 5579,
+          "D": 9534
+        }
+      },
+      "zombi2": {
+        "simulation_s": 0.22547441699998672,
+        "complete_s": 0.4621630000000323,
+        "gene_tree_leaves": 60366,
+        "families": 200,
+        "events": {
+          "origination": 200,
+          "speciation": 45217,
+          "loss": 11350,
+          "duplication": 9334,
+          "transfer_additive": 5615
+        }
+      }
+    },
+    {
+      "tips": 200,
+      "families": 200,
+      "replicate": 2,
+      "tree": {
+        "tips": 200,
+        "seed": 20261223,
+        "age": 1.0,
+        "total_branch_length": 80.82733903676166,
+        "sha256": "1e0effa116005ca75c444ab7064c2675229762e694253f5d6ed3cfb5b54f0c51"
+      },
+      "seed": 1002,
+      "loadavg": [
+        3.689453125,
+        17.4619140625,
+        25.0419921875
+      ],
+      "order": [
+        "zombi2",
+        "asymmetree"
+      ],
+      "zombi2": {
+        "simulation_s": 0.2311422909999692,
+        "complete_s": 0.479770832999975,
+        "gene_tree_leaves": 61576,
+        "families": 200,
+        "events": {
+          "origination": 200,
+          "speciation": 45973,
+          "loss": 11375,
+          "duplication": 9721,
+          "transfer_additive": 5682
+        }
+      },
+      "asymmetree": {
+        "complete_s": 0.6057612500000005,
+        "gene_tree_leaves": 59601,
+        "families": 200,
+        "events": {
+          "S": 93047,
+          "L": 11143,
+          "H": 5534,
+          "D": 9278
+        }
+      }
+    },
+    {
+      "tips": 200,
+      "families": 200,
+      "replicate": 3,
+      "tree": {
+        "tips": 200,
+        "seed": 20261223,
+        "age": 1.0,
+        "total_branch_length": 80.82733903676166,
+        "sha256": "1e0effa116005ca75c444ab7064c2675229762e694253f5d6ed3cfb5b54f0c51"
+      },
+      "seed": 1003,
+      "loadavg": [
+        3.689453125,
+        17.4619140625,
+        25.0419921875
+      ],
+      "order": [
+        "asymmetree",
+        "zombi2"
+      ],
+      "asymmetree": {
+        "complete_s": 0.6107975840000108,
+        "gene_tree_leaves": 58821,
+        "families": 200,
+        "events": {
+          "S": 92000,
+          "H": 5434,
+          "L": 10960,
+          "D": 9048
+        }
+      },
+      "zombi2": {
+        "simulation_s": 0.21940416699999332,
+        "complete_s": 0.45077995799999826,
+        "gene_tree_leaves": 58627,
+        "families": 200,
+        "events": {
+          "origination": 200,
+          "speciation": 43912,
+          "loss": 10980,
+          "transfer_additive": 5463,
+          "duplication": 9052
+        }
+      }
+    },
+    {
+      "tips": 200,
+      "families": 200,
+      "replicate": 4,
+      "tree": {
+        "tips": 200,
+        "seed": 20261223,
+        "age": 1.0,
+        "total_branch_length": 80.82733903676166,
+        "sha256": "1e0effa116005ca75c444ab7064c2675229762e694253f5d6ed3cfb5b54f0c51"
+      },
+      "seed": 1004,
+      "loadavg": [
+        3.689453125,
+        17.4619140625,
+        25.0419921875
+      ],
+      "order": [
+        "zombi2",
+        "asymmetree"
+      ],
+      "zombi2": {
+        "simulation_s": 0.22761908300003597,
+        "complete_s": 0.46975499999996373,
+        "gene_tree_leaves": 59981,
+        "families": 200,
+        "events": {
+          "origination": 200,
+          "speciation": 44924,
+          "loss": 11086,
+          "duplication": 9238,
+          "transfer_additive": 5619
+        }
+      },
+      "asymmetree": {
+        "complete_s": 0.6216857499999833,
+        "gene_tree_leaves": 62939,
+        "families": 200,
+        "events": {
+          "S": 98110,
+          "L": 11697,
+          "D": 9967,
+          "H": 5904
+        }
+      }
+    },
+    {
+      "tips": 200,
+      "families": 200,
+      "replicate": 5,
+      "tree": {
+        "tips": 200,
+        "seed": 20261223,
+        "age": 1.0,
+        "total_branch_length": 80.82733903676166,
+        "sha256": "1e0effa116005ca75c444ab7064c2675229762e694253f5d6ed3cfb5b54f0c51"
+      },
+      "seed": 1005,
+      "loadavg": [
+        3.7939453125,
+        17.2548828125,
+        24.92431640625
+      ],
+      "order": [
+        "asymmetree",
+        "zombi2"
+      ],
+      "asymmetree": {
+        "complete_s": 0.6212992079999822,
+        "gene_tree_leaves": 61793,
+        "families": 200,
+        "events": {
+          "S": 96598,
+          "D": 9677,
+          "L": 11310,
+          "H": 5801
+        }
+      },
+      "zombi2": {
+        "simulation_s": 0.23385133299996141,
+        "complete_s": 0.4861122919999161,
+        "gene_tree_leaves": 60910,
+        "families": 200,
+        "events": {
+          "origination": 200,
+          "speciation": 45560,
+          "loss": 11564,
+          "transfer_additive": 5719,
+          "duplication": 9431
+        }
+      }
+    },
+    {
+      "tips": 200,
+      "families": 200,
+      "replicate": 6,
+      "tree": {
+        "tips": 200,
+        "seed": 20261223,
+        "age": 1.0,
+        "total_branch_length": 80.82733903676166,
+        "sha256": "1e0effa116005ca75c444ab7064c2675229762e694253f5d6ed3cfb5b54f0c51"
+      },
+      "seed": 1006,
+      "loadavg": [
+        3.7939453125,
+        17.2548828125,
+        24.92431640625
+      ],
+      "order": [
+        "zombi2",
+        "asymmetree"
+      ],
+      "zombi2": {
+        "simulation_s": 0.23220937500002492,
+        "complete_s": 0.479551540999978,
+        "gene_tree_leaves": 60820,
+        "families": 200,
+        "events": {
+          "origination": 200,
+          "speciation": 45624,
+          "duplication": 9336,
+          "transfer_additive": 5660,
+          "loss": 11202
+        }
+      },
+      "asymmetree": {
+        "complete_s": 0.5919447080000282,
+        "gene_tree_leaves": 58598,
+        "families": 200,
+        "events": {
+          "S": 91557,
+          "H": 5492,
+          "D": 8996,
+          "L": 10951
+        }
+      }
+    },
+    {
+      "tips": 200,
+      "families": 400,
+      "replicate": 0,
+      "tree": {
+        "tips": 200,
+        "seed": 20261223,
+        "age": 1.0,
+        "total_branch_length": 80.82733903676166,
+        "sha256": "1e0effa116005ca75c444ab7064c2675229762e694253f5d6ed3cfb5b54f0c51"
+      },
+      "seed": 1000,
+      "loadavg": [
+        3.7939453125,
+        17.2548828125,
+        24.92431640625
+      ],
+      "order": [
+        "zombi2",
+        "asymmetree"
+      ],
+      "zombi2": {
+        "simulation_s": 0.4911012909999499,
+        "complete_s": 1.0954506659999197,
+        "gene_tree_leaves": 119712,
+        "families": 400,
+        "events": {
+          "origination": 400,
+          "speciation": 89830,
+          "loss": 22325,
+          "duplication": 18455,
+          "transfer_additive": 11027
+        }
+      },
+      "asymmetree": {
+        "complete_s": 1.366821707999975,
+        "gene_tree_leaves": 120193,
+        "families": 400,
+        "events": {
+          "S": 187766,
+          "L": 22281,
+          "D": 18642,
+          "H": 11297
+        }
+      }
+    },
+    {
+      "tips": 200,
+      "families": 400,
+      "replicate": 1,
+      "tree": {
+        "tips": 200,
+        "seed": 20261223,
+        "age": 1.0,
+        "total_branch_length": 80.82733903676166,
+        "sha256": "1e0effa116005ca75c444ab7064c2675229762e694253f5d6ed3cfb5b54f0c51"
+      },
+      "seed": 1001,
+      "loadavg": [
+        3.56982421875,
+        16.98486328125,
+        24.78369140625
+      ],
+      "order": [
+        "asymmetree",
+        "zombi2"
+      ],
+      "asymmetree": {
+        "complete_s": 1.3774349590000838,
+        "gene_tree_leaves": 120818,
+        "families": 400,
+        "events": {
+          "S": 188965,
+          "L": 22319,
+          "H": 11192,
+          "D": 18760
+        }
+      },
+      "zombi2": {
+        "simulation_s": 0.5086420420000195,
+        "complete_s": 1.1734162080000488,
+        "gene_tree_leaves": 122187,
+        "families": 400,
+        "events": {
+          "origination": 400,
+          "speciation": 91353,
+          "loss": 22714,
+          "duplication": 18943,
+          "transfer_additive": 11491
+        }
+      }
+    },
+    {
+      "tips": 200,
+      "families": 400,
+      "replicate": 2,
+      "tree": {
+        "tips": 200,
+        "seed": 20261223,
+        "age": 1.0,
+        "total_branch_length": 80.82733903676166,
+        "sha256": "1e0effa116005ca75c444ab7064c2675229762e694253f5d6ed3cfb5b54f0c51"
+      },
+      "seed": 1002,
+      "loadavg": [
+        3.44384765625,
+        16.73583984375,
+        24.64990234375
+      ],
+      "order": [
+        "zombi2",
+        "asymmetree"
+      ],
+      "zombi2": {
+        "simulation_s": 0.5188011250000955,
+        "complete_s": 1.1704541670000026,
+        "gene_tree_leaves": 121853,
+        "families": 400,
+        "events": {
+          "origination": 400,
+          "loss": 22602,
+          "speciation": 90986,
+          "duplication": 19102,
+          "transfer_additive": 11365
+        }
+      },
+      "asymmetree": {
+        "complete_s": 1.2824655420000681,
+        "gene_tree_leaves": 118739,
+        "families": 400,
+        "events": {
+          "S": 185389,
+          "L": 22180,
+          "H": 11078,
+          "D": 18431
+        }
+      }
+    },
+    {
+      "tips": 200,
+      "families": 400,
+      "replicate": 3,
+      "tree": {
+        "tips": 200,
+        "seed": 20261223,
+        "age": 1.0,
+        "total_branch_length": 80.82733903676166,
+        "sha256": "1e0effa116005ca75c444ab7064c2675229762e694253f5d6ed3cfb5b54f0c51"
+      },
+      "seed": 1003,
+      "loadavg": [
+        3.44384765625,
+        16.73583984375,
+        24.64990234375
+      ],
+      "order": [
+        "asymmetree",
+        "zombi2"
+      ],
+      "asymmetree": {
+        "complete_s": 1.3756159580000258,
+        "gene_tree_leaves": 119722,
+        "families": 400,
+        "events": {
+          "S": 187059,
+          "H": 11147,
+          "L": 22325,
+          "D": 18513
+        }
+      },
+      "zombi2": {
+        "simulation_s": 0.4999083330000076,
+        "complete_s": 1.1716665829999329,
+        "gene_tree_leaves": 120564,
+        "families": 400,
+        "events": {
+          "origination": 400,
+          "speciation": 90211,
+          "transfer_additive": 11345,
+          "loss": 22585,
+          "duplication": 18608
+        }
+      }
+    },
+    {
+      "tips": 200,
+      "families": 400,
+      "replicate": 4,
+      "tree": {
+        "tips": 200,
+        "seed": 20261223,
+        "age": 1.0,
+        "total_branch_length": 80.82733903676166,
+        "sha256": "1e0effa116005ca75c444ab7064c2675229762e694253f5d6ed3cfb5b54f0c51"
+      },
+      "seed": 1004,
+      "loadavg": [
+        3.728515625,
+        16.57373046875,
+        24.54638671875
+      ],
+      "order": [
+        "zombi2",
+        "asymmetree"
+      ],
+      "zombi2": {
+        "simulation_s": 0.49328670900001725,
+        "complete_s": 1.1390610839999908,
+        "gene_tree_leaves": 119527,
+        "families": 400,
+        "events": {
+          "origination": 400,
+          "speciation": 89551,
+          "loss": 22247,
+          "duplication": 18388,
+          "transfer_additive": 11188
+        }
+      },
+      "asymmetree": {
+        "complete_s": 1.31184774999997,
+        "gene_tree_leaves": 122062,
+        "families": 400,
+        "events": {
+          "S": 190543,
+          "L": 22556,
+          "D": 19103,
+          "H": 11522
+        }
+      }
+    },
+    {
+      "tips": 200,
+      "families": 400,
+      "replicate": 5,
+      "tree": {
+        "tips": 200,
+        "seed": 20261223,
+        "age": 1.0,
+        "total_branch_length": 80.82733903676166,
+        "sha256": "1e0effa116005ca75c444ab7064c2675229762e694253f5d6ed3cfb5b54f0c51"
+      },
+      "seed": 1005,
+      "loadavg": [
+        3.75,
+        16.36474609375,
+        24.42578125
+      ],
+      "order": [
+        "asymmetree",
+        "zombi2"
+      ],
+      "asymmetree": {
+        "complete_s": 1.3326986249999209,
+        "gene_tree_leaves": 120946,
+        "families": 400,
+        "events": {
+          "S": 189142,
+          "D": 18805,
+          "L": 22236,
+          "H": 11309
+        }
+      },
+      "zombi2": {
+        "simulation_s": 0.4966908339999918,
+        "complete_s": 1.134903209000072,
+        "gene_tree_leaves": 120542,
+        "families": 400,
+        "events": {
+          "origination": 400,
+          "speciation": 90146,
+          "loss": 22480,
+          "transfer_additive": 11279,
+          "duplication": 18717
+        }
+      }
+    },
+    {
+      "tips": 200,
+      "families": 400,
+      "replicate": 6,
+      "tree": {
+        "tips": 200,
+        "seed": 20261223,
+        "age": 1.0,
+        "total_branch_length": 80.82733903676166,
+        "sha256": "1e0effa116005ca75c444ab7064c2675229762e694253f5d6ed3cfb5b54f0c51"
+      },
+      "seed": 1006,
+      "loadavg": [
+        3.75,
+        16.36474609375,
+        24.42578125
+      ],
+      "order": [
+        "zombi2",
+        "asymmetree"
+      ],
+      "zombi2": {
+        "simulation_s": 0.49983666600007837,
+        "complete_s": 1.2032855000001064,
+        "gene_tree_leaves": 120962,
+        "families": 400,
+        "events": {
+          "origination": 400,
+          "speciation": 90387,
+          "duplication": 18877,
+          "transfer_additive": 11298,
+          "loss": 22421
+        }
+      },
+      "asymmetree": {
+        "complete_s": 1.2935229170000184,
+        "gene_tree_leaves": 120149,
+        "families": 400,
+        "events": {
+          "S": 187759,
+          "H": 11292,
+          "D": 18523,
+          "L": 22324
+        }
+      }
+    },
+    {
+      "tips": 100,
+      "families": 100,
+      "replicate": 0,
+      "tree": {
+        "tips": 100,
+        "seed": 20261123,
+        "age": 1.0,
+        "total_branch_length": 42.34966332565636,
+        "sha256": "e90e069cc73b20d9b956605a7645a2fae40132051e3919e23ce9116208ba01f8"
+      },
+      "seed": 1000,
+      "loadavg": [
+        3.60986328125,
+        16.1259765625,
+        24.2939453125
+      ],
+      "order": [
+        "zombi2",
+        "asymmetree"
+      ],
+      "zombi2": {
+        "simulation_s": 0.05283712499999638,
+        "complete_s": 0.09275012499995228,
+        "gene_tree_leaves": 15427,
+        "families": 100,
+        "events": {
+          "origination": 100,
+          "speciation": 11329,
+          "loss": 3034,
+          "duplication": 2496,
+          "transfer_additive": 1502
+        }
+      },
+      "asymmetree": {
+        "complete_s": 0.1186811250000801,
+        "gene_tree_leaves": 14870,
+        "families": 100,
+        "events": {
+          "S": 22885,
+          "D": 2422,
+          "H": 1477,
+          "L": 2856
+        }
+      }
+    },
+    {
+      "tips": 100,
+      "families": 100,
+      "replicate": 1,
+      "tree": {
+        "tips": 100,
+        "seed": 20261123,
+        "age": 1.0,
+        "total_branch_length": 42.34966332565636,
+        "sha256": "e90e069cc73b20d9b956605a7645a2fae40132051e3919e23ce9116208ba01f8"
+      },
+      "seed": 1001,
+      "loadavg": [
+        3.60986328125,
+        16.1259765625,
+        24.2939453125
+      ],
+      "order": [
+        "asymmetree",
+        "zombi2"
+      ],
+      "asymmetree": {
+        "complete_s": 0.1229643340000166,
+        "gene_tree_leaves": 15372,
+        "families": 100,
+        "events": {
+          "S": 23782,
+          "H": 1444,
+          "L": 2930,
+          "D": 2488
+        }
+      },
+      "zombi2": {
+        "simulation_s": 0.05239037499995902,
+        "complete_s": 0.0930119999999306,
+        "gene_tree_leaves": 15091,
+        "families": 100,
+        "events": {
+          "origination": 100,
+          "speciation": 11110,
+          "loss": 2923,
+          "duplication": 2382,
+          "transfer_additive": 1499
+        }
+      }
+    },
+    {
+      "tips": 100,
+      "families": 100,
+      "replicate": 2,
+      "tree": {
+        "tips": 100,
+        "seed": 20261123,
+        "age": 1.0,
+        "total_branch_length": 42.34966332565636,
+        "sha256": "e90e069cc73b20d9b956605a7645a2fae40132051e3919e23ce9116208ba01f8"
+      },
+      "seed": 1002,
+      "loadavg": [
+        3.60986328125,
+        16.1259765625,
+        24.2939453125
+      ],
+      "order": [
+        "zombi2",
+        "asymmetree"
+      ],
+      "zombi2": {
+        "simulation_s": 0.05325975000005201,
+        "complete_s": 0.0948724580000544,
+        "gene_tree_leaves": 15589,
+        "families": 100,
+        "events": {
+          "origination": 100,
+          "speciation": 11396,
+          "loss": 2977,
+          "duplication": 2581,
+          "transfer_additive": 1512
+        }
+      },
+      "asymmetree": {
+        "complete_s": 0.12229183399995236,
+        "gene_tree_leaves": 15368,
+        "families": 100,
+        "events": {
+          "S": 23772,
+          "L": 2961,
+          "D": 2416,
+          "H": 1487
+        }
+      }
+    },
+    {
+      "tips": 100,
+      "families": 100,
+      "replicate": 3,
+      "tree": {
+        "tips": 100,
+        "seed": 20261123,
+        "age": 1.0,
+        "total_branch_length": 42.34966332565636,
+        "sha256": "e90e069cc73b20d9b956605a7645a2fae40132051e3919e23ce9116208ba01f8"
+      },
+      "seed": 1003,
+      "loadavg": [
+        3.60986328125,
+        16.1259765625,
+        24.2939453125
+      ],
+      "order": [
+        "asymmetree",
+        "zombi2"
+      ],
+      "asymmetree": {
+        "complete_s": 0.1270180410000421,
+        "gene_tree_leaves": 15743,
+        "families": 100,
+        "events": {
+          "S": 24280,
+          "H": 1496,
+          "L": 3036,
+          "D": 2574
+        }
+      },
+      "zombi2": {
+        "simulation_s": 0.05129299999998693,
+        "complete_s": 0.09158224999998765,
+        "gene_tree_leaves": 14791,
+        "families": 100,
+        "events": {
+          "origination": 100,
+          "speciation": 10915,
+          "loss": 2829,
+          "transfer_additive": 1418,
+          "duplication": 2358
+        }
+      }
+    },
+    {
+      "tips": 100,
+      "families": 100,
+      "replicate": 4,
+      "tree": {
+        "tips": 100,
+        "seed": 20261123,
+        "age": 1.0,
+        "total_branch_length": 42.34966332565636,
+        "sha256": "e90e069cc73b20d9b956605a7645a2fae40132051e3919e23ce9116208ba01f8"
+      },
+      "seed": 1004,
+      "loadavg": [
+        3.60986328125,
+        16.1259765625,
+        24.2939453125
+      ],
+      "order": [
+        "zombi2",
+        "asymmetree"
+      ],
+      "zombi2": {
+        "simulation_s": 0.050541582999926504,
+        "complete_s": 0.09430654100003721,
+        "gene_tree_leaves": 14457,
+        "families": 100,
+        "events": {
+          "origination": 100,
+          "speciation": 10682,
+          "loss": 2829,
+          "duplication": 2326,
+          "transfer_additive": 1349
+        }
+      },
+      "asymmetree": {
+        "complete_s": 0.12168308299999353,
+        "gene_tree_leaves": 15106,
+        "families": 100,
+        "events": {
+          "S": 23465,
+          "H": 1451,
+          "D": 2352,
+          "L": 2844
+        }
+      }
+    },
+    {
+      "tips": 100,
+      "families": 100,
+      "replicate": 5,
+      "tree": {
+        "tips": 100,
+        "seed": 20261123,
+        "age": 1.0,
+        "total_branch_length": 42.34966332565636,
+        "sha256": "e90e069cc73b20d9b956605a7645a2fae40132051e3919e23ce9116208ba01f8"
+      },
+      "seed": 1005,
+      "loadavg": [
+        3.60986328125,
+        16.1259765625,
+        24.2939453125
+      ],
+      "order": [
+        "asymmetree",
+        "zombi2"
+      ],
+      "asymmetree": {
+        "complete_s": 0.11917745799996737,
+        "gene_tree_leaves": 14820,
+        "families": 100,
+        "events": {
+          "S": 22896,
+          "H": 1480,
+          "D": 2303,
+          "L": 2861
+        }
+      },
+      "zombi2": {
+        "simulation_s": 0.053917916999921545,
+        "complete_s": 0.09549524999999903,
+        "gene_tree_leaves": 15641,
+        "families": 100,
+        "events": {
+          "origination": 100,
+          "speciation": 11474,
+          "loss": 3021,
+          "transfer_additive": 1499,
+          "duplication": 2568
+        }
+      }
+    },
+    {
+      "tips": 100,
+      "families": 100,
+      "replicate": 6,
+      "tree": {
+        "tips": 100,
+        "seed": 20261123,
+        "age": 1.0,
+        "total_branch_length": 42.34966332565636,
+        "sha256": "e90e069cc73b20d9b956605a7645a2fae40132051e3919e23ce9116208ba01f8"
+      },
+      "seed": 1006,
+      "loadavg": [
+        3.400390625,
+        15.87451171875,
+        24.1572265625
+      ],
+      "order": [
+        "zombi2",
+        "asymmetree"
+      ],
+      "zombi2": {
+        "simulation_s": 0.051301834000014424,
+        "complete_s": 0.09184420899998713,
+        "gene_tree_leaves": 15056,
+        "families": 100,
+        "events": {
+          "origination": 100,
+          "speciation": 11152,
+          "duplication": 2391,
+          "transfer_additive": 1413,
+          "loss": 2863
+        }
+      },
+      "asymmetree": {
+        "complete_s": 0.11985600000002705,
+        "gene_tree_leaves": 14922,
+        "families": 100,
+        "events": {
+          "S": 23055,
+          "D": 2385,
+          "H": 1415,
+          "L": 2889
+        }
+      }
+    },
+    {
+      "tips": 400,
+      "families": 100,
+      "replicate": 0,
+      "tree": {
+        "tips": 400,
+        "seed": 20261423,
+        "age": 1.0,
+        "total_branch_length": 173.13671243810717,
+        "sha256": "a7bcc9876c65fcbc56814c851c2ab64d18b1c48790a206df94cf97b4aff3c80c"
+      },
+      "seed": 1000,
+      "loadavg": [
+        3.400390625,
+        15.87451171875,
+        24.1572265625
+      ],
+      "order": [
+        "zombi2",
+        "asymmetree"
+      ],
+      "zombi2": {
+        "simulation_s": 0.29884658299999955,
+        "complete_s": 0.6026213750000124,
+        "gene_tree_leaves": 62017,
+        "families": 100,
+        "events": {
+          "origination": 100,
+          "speciation": 45736,
+          "loss": 12221,
+          "duplication": 10149,
+          "transfer_additive": 6032
+        }
+      },
+      "asymmetree": {
+        "complete_s": 0.7594830419999425,
+        "gene_tree_leaves": 60497,
+        "families": 100,
+        "events": {
+          "S": 93400,
+          "D": 9782,
+          "H": 5899,
+          "L": 11813
+        }
+      }
+    },
+    {
+      "tips": 400,
+      "families": 100,
+      "replicate": 1,
+      "tree": {
+        "tips": 400,
+        "seed": 20261423,
+        "age": 1.0,
+        "total_branch_length": 173.13671243810717,
+        "sha256": "a7bcc9876c65fcbc56814c851c2ab64d18b1c48790a206df94cf97b4aff3c80c"
+      },
+      "seed": 1001,
+      "loadavg": [
+        3.400390625,
+        15.87451171875,
+        24.1572265625
+      ],
+      "order": [
+        "asymmetree",
+        "zombi2"
+      ],
+      "asymmetree": {
+        "complete_s": 0.7519256670000232,
+        "gene_tree_leaves": 60581,
+        "families": 100,
+        "events": {
+          "S": 93438,
+          "L": 11738,
+          "D": 9895,
+          "H": 5991
+        }
+      },
+      "zombi2": {
+        "simulation_s": 0.2917091250000112,
+        "complete_s": 0.5525183749999769,
+        "gene_tree_leaves": 61234,
+        "families": 100,
+        "events": {
+          "origination": 100,
+          "speciation": 45031,
+          "loss": 12083,
+          "duplication": 10033,
+          "transfer_additive": 6070
+        }
+      }
+    },
+    {
+      "tips": 400,
+      "families": 100,
+      "replicate": 2,
+      "tree": {
+        "tips": 400,
+        "seed": 20261423,
+        "age": 1.0,
+        "total_branch_length": 173.13671243810717,
+        "sha256": "a7bcc9876c65fcbc56814c851c2ab64d18b1c48790a206df94cf97b4aff3c80c"
+      },
+      "seed": 1002,
+      "loadavg": [
+        3.400390625,
+        15.87451171875,
+        24.1572265625
+      ],
+      "order": [
+        "zombi2",
+        "asymmetree"
+      ],
+      "zombi2": {
+        "simulation_s": 0.29312129200002346,
+        "complete_s": 0.5594077499999912,
+        "gene_tree_leaves": 60757,
+        "families": 100,
+        "events": {
+          "origination": 100,
+          "speciation": 44581,
+          "duplication": 10091,
+          "loss": 11927,
+          "transfer_additive": 5985
+        }
+      },
+      "asymmetree": {
+        "complete_s": 0.7720889160000297,
+        "gene_tree_leaves": 61349,
+        "families": 100,
+        "events": {
+          "S": 94554,
+          "H": 6032,
+          "L": 11902,
+          "D": 10110
+        }
+      }
+    },
+    {
+      "tips": 400,
+      "families": 100,
+      "replicate": 3,
+      "tree": {
+        "tips": 400,
+        "seed": 20261423,
+        "age": 1.0,
+        "total_branch_length": 173.13671243810717,
+        "sha256": "a7bcc9876c65fcbc56814c851c2ab64d18b1c48790a206df94cf97b4aff3c80c"
+      },
+      "seed": 1003,
+      "loadavg": [
+        3.3681640625,
+        15.66064453125,
+        24.033203125
+      ],
+      "order": [
+        "asymmetree",
+        "zombi2"
+      ],
+      "asymmetree": {
+        "complete_s": 0.7424786670000003,
+        "gene_tree_leaves": 60544,
+        "families": 100,
+        "events": {
+          "S": 93203,
+          "D": 9905,
+          "H": 6070,
+          "L": 11810
+        }
+      },
+      "zombi2": {
+        "simulation_s": 0.2967192079998995,
+        "complete_s": 0.5615391249999675,
+        "gene_tree_leaves": 61735,
+        "families": 100,
+        "events": {
+          "origination": 100,
+          "speciation": 45603,
+          "transfer_additive": 6032,
+          "loss": 12289,
+          "duplication": 10000
+        }
+      }
+    },
+    {
+      "tips": 400,
+      "families": 100,
+      "replicate": 4,
+      "tree": {
+        "tips": 400,
+        "seed": 20261423,
+        "age": 1.0,
+        "total_branch_length": 173.13671243810717,
+        "sha256": "a7bcc9876c65fcbc56814c851c2ab64d18b1c48790a206df94cf97b4aff3c80c"
+      },
+      "seed": 1004,
+      "loadavg": [
+        3.3681640625,
+        15.66064453125,
+        24.033203125
+      ],
+      "order": [
+        "zombi2",
+        "asymmetree"
+      ],
+      "zombi2": {
+        "simulation_s": 0.2861061249999466,
+        "complete_s": 0.5440272920000098,
+        "gene_tree_leaves": 59243,
+        "families": 100,
+        "events": {
+          "origination": 100,
+          "speciation": 43659,
+          "loss": 11737,
+          "transfer_additive": 5885,
+          "duplication": 9599
+        }
+      },
+      "asymmetree": {
+        "complete_s": 0.7537428749999435,
+        "gene_tree_leaves": 60683,
+        "families": 100,
+        "events": {
+          "S": 93622,
+          "D": 10017,
+          "H": 5873,
+          "L": 11754
+        }
+      }
+    },
+    {
+      "tips": 400,
+      "families": 100,
+      "replicate": 5,
+      "tree": {
+        "tips": 400,
+        "seed": 20261423,
+        "age": 1.0,
+        "total_branch_length": 173.13671243810717,
+        "sha256": "a7bcc9876c65fcbc56814c851c2ab64d18b1c48790a206df94cf97b4aff3c80c"
+      },
+      "seed": 1005,
+      "loadavg": [
+        3.3681640625,
+        15.66064453125,
+        24.033203125
+      ],
+      "order": [
+        "asymmetree",
+        "zombi2"
+      ],
+      "asymmetree": {
+        "complete_s": 0.7667159160000665,
+        "gene_tree_leaves": 62256,
+        "families": 100,
+        "events": {
+          "S": 96053,
+          "L": 12196,
+          "H": 6064,
+          "D": 10099
+        }
+      },
+      "zombi2": {
+        "simulation_s": 0.3003126249999468,
+        "complete_s": 0.5733024579999437,
+        "gene_tree_leaves": 63143,
+        "families": 100,
+        "events": {
+          "origination": 100,
+          "speciation": 46532,
+          "loss": 12483,
+          "transfer_additive": 6084,
+          "duplication": 10427
+        }
+      }
+    },
+    {
+      "tips": 400,
+      "families": 100,
+      "replicate": 6,
+      "tree": {
+        "tips": 400,
+        "seed": 20261423,
+        "age": 1.0,
+        "total_branch_length": 173.13671243810717,
+        "sha256": "a7bcc9876c65fcbc56814c851c2ab64d18b1c48790a206df94cf97b4aff3c80c"
+      },
+      "seed": 1006,
+      "loadavg": [
+        3.25830078125,
+        15.43359375,
+        23.90380859375
+      ],
+      "order": [
+        "zombi2",
+        "asymmetree"
+      ],
+      "zombi2": {
+        "simulation_s": 0.29580379200001516,
+        "complete_s": 0.5608475839999301,
+        "gene_tree_leaves": 61368,
+        "families": 100,
+        "events": {
+          "origination": 100,
+          "speciation": 45165,
+          "transfer_additive": 6098,
+          "loss": 12081,
+          "duplication": 10005
+        }
+      },
+      "asymmetree": {
+        "complete_s": 0.7562789999999495,
+        "gene_tree_leaves": 60577,
+        "families": 100,
+        "events": {
+          "S": 93035,
+          "H": 6026,
+          "L": 11986,
+          "D": 10007
+        }
+      }
+    },
+    {
+      "tips": 800,
+      "families": 100,
+      "replicate": 0,
+      "tree": {
+        "tips": 800,
+        "seed": 20261823,
+        "age": 1.0,
+        "total_branch_length": 353.55181911898677,
+        "sha256": "32521e1160acc8864809203499b775623c158a1b76d9b1226170b9ab46d3d450"
+      },
+      "seed": 1000,
+      "loadavg": [
+        3.25830078125,
+        15.43359375,
+        23.90380859375
+      ],
+      "order": [
+        "zombi2",
+        "asymmetree"
+      ],
+      "zombi2": {
+        "simulation_s": 0.7978246659999968,
+        "complete_s": 1.4787978329999305,
+        "gene_tree_leaves": 118077,
+        "families": 100,
+        "events": {
+          "origination": 100,
+          "loss": 23683,
+          "speciation": 86830,
+          "duplication": 19498,
+          "transfer_additive": 11649
+        }
+      },
+      "asymmetree": {
+        "complete_s": 2.3095031670000026,
+        "gene_tree_leaves": 124275,
+        "families": 100,
+        "events": {
+          "S": 190670,
+          "L": 24527,
+          "D": 20854,
+          "H": 12399
+        }
+      }
+    },
+    {
+      "tips": 800,
+      "families": 100,
+      "replicate": 1,
+      "tree": {
+        "tips": 800,
+        "seed": 20261823,
+        "age": 1.0,
+        "total_branch_length": 353.55181911898677,
+        "sha256": "32521e1160acc8864809203499b775623c158a1b76d9b1226170b9ab46d3d450"
+      },
+      "seed": 1001,
+      "loadavg": [
+        3.1572265625,
+        15.21044921875,
+        23.775390625
+      ],
+      "order": [
+        "asymmetree",
+        "zombi2"
+      ],
+      "asymmetree": {
+        "complete_s": 2.318649458999971,
+        "gene_tree_leaves": 122372,
+        "families": 100,
+        "events": {
+          "S": 187776,
+          "L": 24264,
+          "D": 20452,
+          "H": 12152
+        }
+      },
+      "zombi2": {
+        "simulation_s": 0.826407750000044,
+        "complete_s": 1.539978541000096,
+        "gene_tree_leaves": 123213,
+        "families": 100,
+        "events": {
+          "origination": 100,
+          "speciation": 90190,
+          "duplication": 20528,
+          "loss": 24595,
+          "transfer_additive": 12395
+        }
+      }
+    },
+    {
+      "tips": 800,
+      "families": 100,
+      "replicate": 2,
+      "tree": {
+        "tips": 800,
+        "seed": 20261823,
+        "age": 1.0,
+        "total_branch_length": 353.55181911898677,
+        "sha256": "32521e1160acc8864809203499b775623c158a1b76d9b1226170b9ab46d3d450"
+      },
+      "seed": 1002,
+      "loadavg": [
+        3.064453125,
+        14.99072265625,
+        23.6474609375
+      ],
+      "order": [
+        "zombi2",
+        "asymmetree"
+      ],
+      "zombi2": {
+        "simulation_s": 0.8197772500000156,
+        "complete_s": 1.596902957999987,
+        "gene_tree_leaves": 120907,
+        "families": 100,
+        "events": {
+          "origination": 100,
+          "loss": 24182,
+          "speciation": 88453,
+          "duplication": 20282,
+          "transfer_additive": 12072
+        }
+      },
+      "asymmetree": {
+        "complete_s": 2.3010182500000838,
+        "gene_tree_leaves": 121881,
+        "families": 100,
+        "events": {
+          "S": 186950,
+          "H": 12187,
+          "D": 20305,
+          "L": 24220
+        }
+      }
+    },
+    {
+      "tips": 800,
+      "families": 100,
+      "replicate": 3,
+      "tree": {
+        "tips": 800,
+        "seed": 20261823,
+        "age": 1.0,
+        "total_branch_length": 353.55181911898677,
+        "sha256": "32521e1160acc8864809203499b775623c158a1b76d9b1226170b9ab46d3d450"
+      },
+      "seed": 1003,
+      "loadavg": [
+        2.97900390625,
+        14.77490234375,
+        23.5205078125
+      ],
+      "order": [
+        "asymmetree",
+        "zombi2"
+      ],
+      "asymmetree": {
+        "complete_s": 2.3756037079999714,
+        "gene_tree_leaves": 125601,
+        "families": 100,
+        "events": {
+          "S": 192324,
+          "H": 12622,
+          "D": 20913,
+          "L": 25243
+        }
+      },
+      "zombi2": {
+        "simulation_s": 0.8419482499999731,
+        "complete_s": 1.590048374999924,
+        "gene_tree_leaves": 124886,
+        "families": 100,
+        "events": {
+          "origination": 100,
+          "duplication": 20564,
+          "loss": 25152,
+          "speciation": 91742,
+          "transfer_additive": 12480
+        }
+      }
+    },
+    {
+      "tips": 800,
+      "families": 100,
+      "replicate": 4,
+      "tree": {
+        "tips": 800,
+        "seed": 20261823,
+        "age": 1.0,
+        "total_branch_length": 353.55181911898677,
+        "sha256": "32521e1160acc8864809203499b775623c158a1b76d9b1226170b9ab46d3d450"
+      },
+      "seed": 1004,
+      "loadavg": [
+        2.900390625,
+        14.5625,
+        23.39404296875
+      ],
+      "order": [
+        "zombi2",
+        "asymmetree"
+      ],
+      "zombi2": {
+        "simulation_s": 0.813166625000008,
+        "complete_s": 1.534235666000086,
+        "gene_tree_leaves": 121329,
+        "families": 100,
+        "events": {
+          "origination": 100,
+          "speciation": 88867,
+          "duplication": 20075,
+          "loss": 24300,
+          "transfer_additive": 12287
+        }
+      },
+      "asymmetree": {
+        "complete_s": 2.2852024170000504,
+        "gene_tree_leaves": 123983,
+        "families": 100,
+        "events": {
+          "S": 190357,
+          "D": 20609,
+          "L": 24747,
+          "H": 12153
+        }
+      }
+    },
+    {
+      "tips": 800,
+      "families": 100,
+      "replicate": 5,
+      "tree": {
+        "tips": 800,
+        "seed": 20261823,
+        "age": 1.0,
+        "total_branch_length": 353.55181911898677,
+        "sha256": "32521e1160acc8864809203499b775623c158a1b76d9b1226170b9ab46d3d450"
+      },
+      "seed": 1005,
+      "loadavg": [
+        2.748046875,
+        14.3369140625,
+        23.2626953125
+      ],
+      "order": [
+        "asymmetree",
+        "zombi2"
+      ],
+      "asymmetree": {
+        "complete_s": 2.2271104999999807,
+        "gene_tree_leaves": 119272,
+        "families": 100,
+        "events": {
+          "S": 183298,
+          "L": 23788,
+          "D": 19680,
+          "H": 11678
+        }
+      },
+      "zombi2": {
+        "simulation_s": 0.8457393749999937,
+        "complete_s": 1.576752166999995,
+        "gene_tree_leaves": 125549,
+        "families": 100,
+        "events": {
+          "origination": 100,
+          "speciation": 91875,
+          "transfer_additive": 12720,
+          "duplication": 20854,
+          "loss": 24932
+        }
+      }
+    },
+    {
+      "tips": 800,
+      "families": 100,
+      "replicate": 6,
+      "tree": {
+        "tips": 800,
+        "seed": 20261823,
+        "age": 1.0,
+        "total_branch_length": 353.55181911898677,
+        "sha256": "32521e1160acc8864809203499b775623c158a1b76d9b1226170b9ab46d3d450"
+      },
+      "seed": 1006,
+      "loadavg": [
+        2.60791015625,
+        14.115234375,
+        23.1318359375
+      ],
+      "order": [
+        "zombi2",
+        "asymmetree"
+      ],
+      "zombi2": {
+        "simulation_s": 0.8163867079999818,
+        "complete_s": 1.5632120000000214,
+        "gene_tree_leaves": 121217,
+        "families": 100,
+        "events": {
+          "origination": 100,
+          "speciation": 88688,
+          "duplication": 20234,
+          "loss": 24166,
+          "transfer_additive": 12195
+        }
+      },
+      "asymmetree": {
+        "complete_s": 2.2291004999999586,
+        "gene_tree_leaves": 118214,
+        "families": 100,
+        "events": {
+          "S": 181158,
+          "L": 23752,
+          "H": 11905,
+          "D": 19513
+        }
+      }
+    }
+  ],
+  "summary": [
+    {
+      "tips": 200,
+      "families": 50,
+      "zombi2_complete_median_s": 0.09200479099990844,
+      "asymmetree_complete_median_s": 0.12671766599999046,
+      "speedup_complete": 1.377294210690795,
+      "zombi2_simulation_only_median_s": 0.05546462499989957,
+      "speedup_old_endpoint": 2.2846574010050533,
+      "zombi2_gene_tree_leaves_median": 14962,
+      "asymmetree_gene_tree_leaves_median": 14798,
+      "work_ratio_A_over_Z": 0.9890388985429756
+    },
+    {
+      "tips": 200,
+      "families": 100,
+      "zombi2_complete_median_s": 0.2222129159999895,
+      "asymmetree_complete_median_s": 0.26170954200006236,
+      "speedup_complete": 1.177742260490721,
+      "zombi2_simulation_only_median_s": 0.11942245900002035,
+      "speedup_old_endpoint": 2.1914599999989766,
+      "zombi2_gene_tree_leaves_median": 30193,
+      "asymmetree_gene_tree_leaves_median": 29703,
+      "work_ratio_A_over_Z": 0.9837710727652105
+    },
+    {
+      "tips": 200,
+      "families": 200,
+      "zombi2_complete_median_s": 0.4758286669999734,
+      "asymmetree_complete_median_s": 0.6107975840000108,
+      "speedup_complete": 1.2836502429561374,
+      "zombi2_simulation_only_median_s": 0.2311422909999692,
+      "speedup_old_endpoint": 2.6425176516057474,
+      "zombi2_gene_tree_leaves_median": 60820,
+      "asymmetree_gene_tree_leaves_median": 60410,
+      "work_ratio_A_over_Z": 0.9932587964485367
+    },
+    {
+      "tips": 200,
+      "families": 400,
+      "zombi2_complete_median_s": 1.1704541670000026,
+      "asymmetree_complete_median_s": 1.3326986249999209,
+      "speedup_complete": 1.1386166691308963,
+      "zombi2_simulation_only_median_s": 0.49983666600007837,
+      "speedup_old_endpoint": 2.666268234511055,
+      "zombi2_gene_tree_leaves_median": 120564,
+      "asymmetree_gene_tree_leaves_median": 120193,
+      "work_ratio_A_over_Z": 0.9969227961912346
+    },
+    {
+      "tips": 100,
+      "families": 100,
+      "zombi2_complete_median_s": 0.0930119999999306,
+      "asymmetree_complete_median_s": 0.12168308299999353,
+      "speedup_complete": 1.3082514406752284,
+      "zombi2_simulation_only_median_s": 0.05239037499995902,
+      "speedup_old_endpoint": 2.3226228672745464,
+      "zombi2_gene_tree_leaves_median": 15091,
+      "asymmetree_gene_tree_leaves_median": 15106,
+      "work_ratio_A_over_Z": 1.0009939699158439
+    },
+    {
+      "tips": 400,
+      "families": 100,
+      "zombi2_complete_median_s": 0.5608475839999301,
+      "asymmetree_complete_median_s": 0.7562789999999495,
+      "speedup_complete": 1.3484572664220371,
+      "zombi2_simulation_only_median_s": 0.29580379200001516,
+      "speedup_old_endpoint": 2.556691362495822,
+      "zombi2_gene_tree_leaves_median": 61368,
+      "asymmetree_gene_tree_leaves_median": 60581,
+      "work_ratio_A_over_Z": 0.9871757267631339
+    },
+    {
+      "tips": 800,
+      "families": 100,
+      "zombi2_complete_median_s": 1.5632120000000214,
+      "asymmetree_complete_median_s": 2.3010182500000838,
+      "speedup_complete": 1.471980927730885,
+      "zombi2_simulation_only_median_s": 0.8197772500000156,
+      "speedup_old_endpoint": 2.80688229637995,
+      "zombi2_gene_tree_leaves_median": 121329,
+      "asymmetree_gene_tree_leaves_median": 122372,
+      "work_ratio_A_over_Z": 1.0085964608626132
+    }
+  ],
+  "memory": [
+    {
+      "replicate": 0,
+      "tool": "zombi2",
+      "tree": {
+        "tips": 400,
+        "seed": 20261423,
+        "age": 1.0,
+        "total_branch_length": 173.13671243810717,
+        "sha256": "a7bcc9876c65fcbc56814c851c2ab64d18b1c48790a206df94cf97b4aff3c80c"
+      },
+      "families": 200,
+      "baseline_rss_mb": 75.328125,
+      "peak_rss_mb": 304.1875,
+      "result": {
+        "simulation_s": 0.5824027500000284,
+        "complete_s": 1.2086927499999547,
+        "gene_tree_leaves": 118632,
+        "families": 200,
+        "events": {
+          "origination": 200,
+          "speciation": 87560,
+          "loss": 23467,
+          "duplication": 19370,
+          "transfer_additive": 11502
+        }
+      }
+    },
+    {
+      "replicate": 0,
+      "tool": "asymmetree",
+      "tree": {
+        "tips": 400,
+        "seed": 20261423,
+        "age": 1.0,
+        "total_branch_length": 173.13671243810717,
+        "sha256": "a7bcc9876c65fcbc56814c851c2ab64d18b1c48790a206df94cf97b4aff3c80c"
+      },
+      "families": 200,
+      "baseline_rss_mb": 75.859375,
+      "peak_rss_mb": 197.671875,
+      "result": {
+        "complete_s": 1.528247374999978,
+        "gene_tree_leaves": 119939,
+        "families": 200,
+        "events": {
+          "S": 185114,
+          "D": 19513,
+          "H": 11806,
+          "L": 23245
+        }
+      }
+    },
+    {
+      "replicate": 1,
+      "tool": "zombi2",
+      "tree": {
+        "tips": 400,
+        "seed": 20261423,
+        "age": 1.0,
+        "total_branch_length": 173.13671243810717,
+        "sha256": "a7bcc9876c65fcbc56814c851c2ab64d18b1c48790a206df94cf97b4aff3c80c"
+      },
+      "families": 200,
+      "baseline_rss_mb": 75.390625,
+      "peak_rss_mb": 306.78125,
+      "result": {
+        "simulation_s": 0.5898990419999564,
+        "complete_s": 1.2175608339999826,
+        "gene_tree_leaves": 118632,
+        "families": 200,
+        "events": {
+          "origination": 200,
+          "speciation": 87560,
+          "loss": 23467,
+          "duplication": 19370,
+          "transfer_additive": 11502
+        }
+      }
+    },
+    {
+      "replicate": 1,
+      "tool": "asymmetree",
+      "tree": {
+        "tips": 400,
+        "seed": 20261423,
+        "age": 1.0,
+        "total_branch_length": 173.13671243810717,
+        "sha256": "a7bcc9876c65fcbc56814c851c2ab64d18b1c48790a206df94cf97b4aff3c80c"
+      },
+      "families": 200,
+      "baseline_rss_mb": 74.8125,
+      "peak_rss_mb": 196.625,
+      "result": {
+        "complete_s": 1.5364716249999901,
+        "gene_tree_leaves": 119939,
+        "families": 200,
+        "events": {
+          "S": 185114,
+          "D": 19513,
+          "H": 11806,
+          "L": 23245
+        }
+      }
+    },
+    {
+      "replicate": 2,
+      "tool": "zombi2",
+      "tree": {
+        "tips": 400,
+        "seed": 20261423,
+        "age": 1.0,
+        "total_branch_length": 173.13671243810717,
+        "sha256": "a7bcc9876c65fcbc56814c851c2ab64d18b1c48790a206df94cf97b4aff3c80c"
+      },
+      "families": 200,
+      "baseline_rss_mb": 75.359375,
+      "peak_rss_mb": 309.34375,
+      "result": {
+        "simulation_s": 0.5867865419999134,
+        "complete_s": 1.2031272919999765,
+        "gene_tree_leaves": 118632,
+        "families": 200,
+        "events": {
+          "origination": 200,
+          "speciation": 87560,
+          "loss": 23467,
+          "duplication": 19370,
+          "transfer_additive": 11502
+        }
+      }
+    },
+    {
+      "replicate": 2,
+      "tool": "asymmetree",
+      "tree": {
+        "tips": 400,
+        "seed": 20261423,
+        "age": 1.0,
+        "total_branch_length": 173.13671243810717,
+        "sha256": "a7bcc9876c65fcbc56814c851c2ab64d18b1c48790a206df94cf97b4aff3c80c"
+      },
+      "families": 200,
+      "baseline_rss_mb": 75.40625,
+      "peak_rss_mb": 197.203125,
+      "result": {
+        "complete_s": 1.5309497920000013,
+        "gene_tree_leaves": 119939,
+        "families": 200,
+        "events": {
+          "S": 185114,
+          "D": 19513,
+          "H": 11806,
+          "L": 23245
+        }
+      }
+    },
+    {
+      "replicate": 0,
+      "tool": "zombi2",
+      "tree": {
+        "tips": 800,
+        "seed": 20261823,
+        "age": 1.0,
+        "total_branch_length": 353.55181911898677,
+        "sha256": "32521e1160acc8864809203499b775623c158a1b76d9b1226170b9ab46d3d450"
+      },
+      "families": 200,
+      "baseline_rss_mb": 76.171875,
+      "peak_rss_mb": 538.21875,
+      "result": {
+        "simulation_s": 1.7107714160000569,
+        "complete_s": 3.0877240410000013,
+        "gene_tree_leaves": 243800,
+        "families": 200,
+        "events": {
+          "origination": 200,
+          "loss": 48505,
+          "duplication": 40557,
+          "speciation": 178998,
+          "transfer_additive": 24045
+        }
+      }
+    },
+    {
+      "replicate": 0,
+      "tool": "asymmetree",
+      "tree": {
+        "tips": 800,
+        "seed": 20261823,
+        "age": 1.0,
+        "total_branch_length": 353.55181911898677,
+        "sha256": "32521e1160acc8864809203499b775623c158a1b76d9b1226170b9ab46d3d450"
+      },
+      "families": 200,
+      "baseline_rss_mb": 76.0625,
+      "peak_rss_mb": 331.921875,
+      "result": {
+        "complete_s": 4.711025667000058,
+        "gene_tree_leaves": 250097,
+        "families": 200,
+        "events": {
+          "S": 383629,
+          "L": 49279,
+          "D": 42133,
+          "H": 24953
+        }
+      }
+    },
+    {
+      "replicate": 1,
+      "tool": "zombi2",
+      "tree": {
+        "tips": 800,
+        "seed": 20261823,
+        "age": 1.0,
+        "total_branch_length": 353.55181911898677,
+        "sha256": "32521e1160acc8864809203499b775623c158a1b76d9b1226170b9ab46d3d450"
+      },
+      "families": 200,
+      "baseline_rss_mb": 75.1875,
+      "peak_rss_mb": 541.21875,
+      "result": {
+        "simulation_s": 1.7231554170000436,
+        "complete_s": 3.1698737090000577,
+        "gene_tree_leaves": 243800,
+        "families": 200,
+        "events": {
+          "origination": 200,
+          "loss": 48505,
+          "duplication": 40557,
+          "speciation": 178998,
+          "transfer_additive": 24045
+        }
+      }
+    },
+    {
+      "replicate": 1,
+      "tool": "asymmetree",
+      "tree": {
+        "tips": 800,
+        "seed": 20261823,
+        "age": 1.0,
+        "total_branch_length": 353.55181911898677,
+        "sha256": "32521e1160acc8864809203499b775623c158a1b76d9b1226170b9ab46d3d450"
+      },
+      "families": 200,
+      "baseline_rss_mb": 75.59375,
+      "peak_rss_mb": 331.59375,
+      "result": {
+        "complete_s": 4.692822208000052,
+        "gene_tree_leaves": 250097,
+        "families": 200,
+        "events": {
+          "S": 383629,
+          "L": 49279,
+          "D": 42133,
+          "H": 24953
+        }
+      }
+    },
+    {
+      "replicate": 2,
+      "tool": "zombi2",
+      "tree": {
+        "tips": 800,
+        "seed": 20261823,
+        "age": 1.0,
+        "total_branch_length": 353.55181911898677,
+        "sha256": "32521e1160acc8864809203499b775623c158a1b76d9b1226170b9ab46d3d450"
+      },
+      "families": 200,
+      "baseline_rss_mb": 76.6875,
+      "peak_rss_mb": 540.265625,
+      "result": {
+        "simulation_s": 1.687026166999999,
+        "complete_s": 3.0551635839999562,
+        "gene_tree_leaves": 243800,
+        "families": 200,
+        "events": {
+          "origination": 200,
+          "loss": 48505,
+          "duplication": 40557,
+          "speciation": 178998,
+          "transfer_additive": 24045
+        }
+      }
+    },
+    {
+      "replicate": 2,
+      "tool": "asymmetree",
+      "tree": {
+        "tips": 800,
+        "seed": 20261823,
+        "age": 1.0,
+        "total_branch_length": 353.55181911898677,
+        "sha256": "32521e1160acc8864809203499b775623c158a1b76d9b1226170b9ab46d3d450"
+      },
+      "families": 200,
+      "baseline_rss_mb": 75.484375,
+      "peak_rss_mb": 331.5,
+      "result": {
+        "complete_s": 4.720694832999925,
+        "gene_tree_leaves": 250097,
+        "families": 200,
+        "events": {
+          "S": 383629,
+          "L": 49279,
+          "D": 42133,
+          "H": 24953
+        }
+      }
+    }
+  ]
+}

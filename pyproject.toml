@@ -143,6 +143,8 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+# Frozen timing harness: keep the executed bytes and recorded SHA-256 unchanged.
+"assets/performance/v0.64.2/benchmark_genomes.py" = ["E401", "E402", "E701"]
 # The figure scripts share one house-style vocabulary import (`from zombi_style import save, FONT,
 # INK, MUTED, ACCENT, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK` and shorter subsets of it — 12 figure
 # scripts, 11 of them importing the shared vocabulary). A script keeps the names it imported

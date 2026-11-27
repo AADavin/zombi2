@@ -9,6 +9,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+
+- Updated the README and performance page with the measured 0.64.2 study, raw records and reproduction scripts. The performance figure now compares complete gene-tree runtimes with AsymmeTree and keeps its legend clear of the bars.
+
 ## [0.64.2] - 2026-11-26
 
 ### Changed

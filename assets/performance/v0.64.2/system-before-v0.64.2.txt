@@ -1,0 +1,18 @@
+ 8:10  up 13 mins, 1 user, load averages: 3.29 18.10 25.40
+Now drawing from 'AC Power'
+ -InternalBattery-0 (id=25886819)	100%; charged; 0:00 remaining present: true
+Note: No thermal warning level has been recorded
+Note: No performance warning level has been recorded
+Note: No CPU power status has been recorded
+ 8:14  up 17 mins, 1 user, load averages: 2.10 10.07 20.28
+Now drawing from 'AC Power'
+ -InternalBattery-0 (id=25886819)	100%; charged; 0:00 remaining present: true
+Note: No thermal warning level has been recorded
+Note: No performance warning level has been recorded
+Note: No CPU power status has been recorded
+ 8:15  up 18 mins, 1 user, load averages: 2.31 8.37 18.78
+Now drawing from 'AC Power'
+ -InternalBattery-0 (id=25886819)	100%; charged; 0:00 remaining present: true
+Note: No thermal warning level has been recorded
+Note: No performance warning level has been recorded
+Note: No CPU power status has been recorded

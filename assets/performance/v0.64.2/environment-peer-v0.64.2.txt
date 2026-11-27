@@ -1,0 +1,17 @@
+asymmetree==2.3.1
+contourpy==1.4.0
+cycler==0.12.1
+fonttools==4.69.1
+kiwisolver==1.5.1
+matplotlib==3.11.2
+networkx==3.7
+numpy==2.5.1
+packaging==26.4
+pillow==13.0.0
+pyparsing==3.3.3
+python-dateutil==4.0.0
+scipy==1.16.0
+tomli==2.5.0
+tqdm==4.70.1
+tralda==2.0.3
+tzdata==2026.6

@@ -139,16 +139,20 @@ zombi2 joint out/ --birth "PerLineage(1.0).scaled_by('trait', {'small': 1.0, 'la
 
 ## Performance
 
-A species tree of a million leaves takes about six seconds. On the same gene-family task, ZOMBI2
-runs about **210× faster than the legacy ZOMBI1** — both pure Python.
+ZOMBI2 0.64.2 simulated a species tree with one million extant tips in **5.90 seconds**
+(median of three runs). Across seven shared duplication–transfer–loss workloads, AsymmeTree 2.3.1
+had median runtimes **1.14–1.47×** those of ZOMBI2; both timers included construction of all
+complete gene trees. ZOMBI2 used more peak memory in this comparison.
 
 <p align="center">
-  <img alt="ZOMBI2 performance overview: (a) species-tree simulation scaling to millions of tips; (b) genome simulation at the family, gene-order and nucleotide resolutions; (c) ZOMBI2 about 210 times faster than the legacy ZOMBI1 on one shared 1,000-tip tree" src="https://raw.githubusercontent.com/AADavin/zombi2/main/assets/performance-overview.svg" width="840">
+  <img alt="Performance of ZOMBI2 0.64.2: species-tree scaling, genome scaling at three resolutions, and complete-gene-tree runtimes compared with AsymmeTree 2.3.1" src="https://raw.githubusercontent.com/AADavin/ZOMBI2/main/assets/performance-overview.svg" width="840">
 </p>
 
-The numbers behind the figure are in [`assets/performance/`](assets/performance/), one JSON per
-benchmark with the raw times and their provenance; the full read is the docs site's
-[Performance page](https://aadavin.github.io/ZOMBI2/docs/performance/).
+Measured serially on one 10-core Apple Silicon laptop on 27 November 2026. The genome curves use
+different starting configurations and rate scopes; they do not represent equal gene turnover.
+[Raw results and scripts](assets/performance/v0.64.2/) record the repeats, seeds, software versions
+and system conditions. See the [performance protocol](https://aadavin.github.io/ZOMBI2/docs/performance/)
+for timing boundaries and the nucleotide-workload qualification.
 
 ## Gallery
 

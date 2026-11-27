@@ -1,0 +1,182 @@
+{
+  "env": {
+    "timestamp_utc": "2026-11-27T07:14:13.670182+00:00",
+    "python": "3.12.2 | packaged by conda-forge | (main, Feb 16 2024, 20:54:21) [Clang 16.0.6 ]",
+    "numpy": "1.26.4",
+    "zombi2": "0.64.2",
+    "source_commit": "047ce05fd96362439a9b9f633b13ce0cfd45f94e",
+    "zombi2_source": "/Users/aadria/.codex/visualizations/2026/10/23/01a1680b-570b-7d73-a4bc-5d1a9e296925/zombi2-paper/review/2026-11-27/v0.64.2-run/source/zombi2/__init__.py",
+    "platform": "macOS-27.2.1-arm64-arm-64bit",
+    "cpu_count": 10,
+    "loadavg": [
+      2.09619140625,
+      10.06689453125,
+      20.28466796875
+    ]
+  },
+  "task": "birth=1, death=.3, stop at N extant; GC disabled inside timed call",
+  "rows": [
+    {
+      "tips": 1000,
+      "seed": 1001,
+      "seconds": 0.004587249999985943,
+      "peak_rss_mib": 35.40625,
+      "baseline_rss_mib": 34.265625,
+      "n_extant": 1000,
+      "nodes": 2815
+    },
+    {
+      "tips": 1000,
+      "seed": 1002,
+      "seconds": 0.004741541999919718,
+      "peak_rss_mib": 35.765625,
+      "baseline_rss_mib": 34.03125,
+      "n_extant": 1000,
+      "nodes": 2907
+    },
+    {
+      "tips": 1000,
+      "seed": 1003,
+      "seconds": 0.0046419169999580845,
+      "peak_rss_mib": 35.640625,
+      "baseline_rss_mib": 34.5,
+      "n_extant": 1000,
+      "nodes": 2819
+    },
+    {
+      "tips": 10000,
+      "seed": 1001,
+      "seconds": 0.0470207500000015,
+      "peak_rss_mib": 49.359375,
+      "baseline_rss_mib": 34.40625,
+      "n_extant": 10000,
+      "nodes": 28567
+    },
+    {
+      "tips": 10000,
+      "seed": 1002,
+      "seconds": 0.048091959000089446,
+      "peak_rss_mib": 49.40625,
+      "baseline_rss_mib": 34.125,
+      "n_extant": 10000,
+      "nodes": 28621
+    },
+    {
+      "tips": 10000,
+      "seed": 1003,
+      "seconds": 0.046759750000092026,
+      "peak_rss_mib": 48.84375,
+      "baseline_rss_mib": 34.28125,
+      "n_extant": 10000,
+      "nodes": 28363
+    },
+    {
+      "tips": 100000,
+      "seed": 1001,
+      "seconds": 0.5245752089999769,
+      "peak_rss_mib": 175.21875,
+      "baseline_rss_mib": 34.0625,
+      "n_extant": 100000,
+      "nodes": 285329
+    },
+    {
+      "tips": 100000,
+      "seed": 1002,
+      "seconds": 0.5237936670000636,
+      "peak_rss_mib": 173.46875,
+      "baseline_rss_mib": 34.3125,
+      "n_extant": 100000,
+      "nodes": 286181
+    },
+    {
+      "tips": 100000,
+      "seed": 1003,
+      "seconds": 0.5227184170000783,
+      "peak_rss_mib": 177.203125,
+      "baseline_rss_mib": 34.09375,
+      "n_extant": 100000,
+      "nodes": 285259
+    },
+    {
+      "tips": 500000,
+      "seed": 1001,
+      "seconds": 2.824293832999956,
+      "peak_rss_mib": 867.265625,
+      "baseline_rss_mib": 34.78125,
+      "n_extant": 500000,
+      "nodes": 1430579
+    },
+    {
+      "tips": 500000,
+      "seed": 1002,
+      "seconds": 2.8493815840001844,
+      "peak_rss_mib": 866.5625,
+      "baseline_rss_mib": 34.578125,
+      "n_extant": 500000,
+      "nodes": 1430511
+    },
+    {
+      "tips": 500000,
+      "seed": 1003,
+      "seconds": 2.823973625000008,
+      "peak_rss_mib": 869.734375,
+      "baseline_rss_mib": 34.578125,
+      "n_extant": 500000,
+      "nodes": 1425765
+    },
+    {
+      "tips": 1000000,
+      "seed": 1001,
+      "seconds": 5.899310666000019,
+      "peak_rss_mib": 1688.609375,
+      "baseline_rss_mib": 34.171875,
+      "n_extant": 1000000,
+      "nodes": 2858257
+    },
+    {
+      "tips": 1000000,
+      "seed": 1002,
+      "seconds": 5.919772291000072,
+      "peak_rss_mib": 1702.046875,
+      "baseline_rss_mib": 33.828125,
+      "n_extant": 1000000,
+      "nodes": 2859477
+    },
+    {
+      "tips": 1000000,
+      "seed": 1003,
+      "seconds": 5.866334249999909,
+      "peak_rss_mib": 1693.625,
+      "baseline_rss_mib": 34.359375,
+      "n_extant": 1000000,
+      "nodes": 2853545
+    }
+  ],
+  "summary": [
+    {
+      "tips": 1000,
+      "median_s": 0.0046419169999580845,
+      "peak_rss_mib": 35.765625
+    },
+    {
+      "tips": 10000,
+      "median_s": 0.0470207500000015,
+      "peak_rss_mib": 49.40625
+    },
+    {
+      "tips": 100000,
+      "median_s": 0.5237936670000636,
+      "peak_rss_mib": 177.203125
+    },
+    {
+      "tips": 500000,
+      "median_s": 2.824293832999956,
+      "peak_rss_mib": 869.734375
+    },
+    {
+      "tips": 1000000,
+      "median_s": 5.899310666000019,
+      "peak_rss_mib": 1702.046875
+    }
+  ]
+}

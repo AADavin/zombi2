@@ -1,0 +1,582 @@
+{
+  "version": "0.64.2",
+  "commit": "047ce05fd96362439a9b9f633b13ce0cfd45f94e",
+  "python": "3.12.2 | packaged by conda-forge | (main, Feb 16 2024, 20:54:21) [Clang 16.0.6 ]",
+  "numpy": "1.26.4",
+  "platform": "macOS-27.2.1-arm64-arm-64bit",
+  "rates": {
+    "duplication": 0.2,
+    "transfer": 0.1,
+    "loss": 0.25,
+    "origination": 0.5
+  },
+  "tree_rates": {
+    "birth": 1.0,
+    "death": 0.3
+  },
+  "rows": [
+    {
+      "resolution": "family",
+      "tips": 100,
+      "seed": 7001,
+      "seconds": 0.01494720799996685,
+      "loadavg": [
+        2.31005859375,
+        8.37255859375,
+        18.77783203125
+      ],
+      "gene_edges": 8819
+    },
+    {
+      "resolution": "family",
+      "tips": 100,
+      "seed": 7002,
+      "seconds": 0.012157249999972919,
+      "loadavg": [
+        2.31005859375,
+        8.37255859375,
+        18.77783203125
+      ],
+      "gene_edges": 7537
+    },
+    {
+      "resolution": "family",
+      "tips": 100,
+      "seed": 7003,
+      "seconds": 0.016937874999939595,
+      "loadavg": [
+        2.31005859375,
+        8.37255859375,
+        18.77783203125
+      ],
+      "gene_edges": 10336
+    },
+    {
+      "resolution": "family",
+      "tips": 300,
+      "seed": 7001,
+      "seconds": 0.05598491700015984,
+      "loadavg": [
+        2.31005859375,
+        8.37255859375,
+        18.77783203125
+      ],
+      "gene_edges": 27373
+    },
+    {
+      "resolution": "family",
+      "tips": 300,
+      "seed": 7002,
+      "seconds": 0.0628227079998851,
+      "loadavg": [
+        2.31005859375,
+        8.37255859375,
+        18.77783203125
+      ],
+      "gene_edges": 31233
+    },
+    {
+      "resolution": "family",
+      "tips": 300,
+      "seed": 7003,
+      "seconds": 0.046014708000029714,
+      "loadavg": [
+        2.31005859375,
+        8.37255859375,
+        18.77783203125
+      ],
+      "gene_edges": 22976
+    },
+    {
+      "resolution": "family",
+      "tips": 1000,
+      "seed": 7001,
+      "seconds": 0.2475763749998805,
+      "loadavg": [
+        2.31005859375,
+        8.37255859375,
+        18.77783203125
+      ],
+      "gene_edges": 79235
+    },
+    {
+      "resolution": "family",
+      "tips": 1000,
+      "seed": 7002,
+      "seconds": 0.3026869169998463,
+      "loadavg": [
+        2.31005859375,
+        8.37255859375,
+        18.77783203125
+      ],
+      "gene_edges": 83332
+    },
+    {
+      "resolution": "family",
+      "tips": 1000,
+      "seed": 7003,
+      "seconds": 0.33653595900000255,
+      "loadavg": [
+        2.31005859375,
+        8.37255859375,
+        18.77783203125
+      ],
+      "gene_edges": 105322
+    },
+    {
+      "resolution": "family",
+      "tips": 3000,
+      "seed": 7001,
+      "seconds": 2.1239532080001027,
+      "loadavg": [
+        2.4453125,
+        8.2998046875,
+        18.69091796875
+      ],
+      "gene_edges": 323914
+    },
+    {
+      "resolution": "family",
+      "tips": 3000,
+      "seed": 7002,
+      "seconds": 2.408153957999957,
+      "loadavg": [
+        2.4453125,
+        8.2998046875,
+        18.69091796875
+      ],
+      "gene_edges": 369237
+    },
+    {
+      "resolution": "family",
+      "tips": 3000,
+      "seed": 7003,
+      "seconds": 2.574429999999893,
+      "loadavg": [
+        2.5693359375,
+        8.22802734375,
+        18.6044921875
+      ],
+      "gene_edges": 389545
+    },
+    {
+      "resolution": "family",
+      "tips": 10000,
+      "seed": 7001,
+      "seconds": 22.439865665999832,
+      "loadavg": [
+        2.97509765625,
+        7.953125,
+        18.263671875
+      ],
+      "gene_edges": 1207068
+    },
+    {
+      "resolution": "family",
+      "tips": 10000,
+      "seed": 7002,
+      "seconds": 17.033319166000183,
+      "loadavg": [
+        3.4970703125,
+        7.74560546875,
+        17.9482421875
+      ],
+      "gene_edges": 919809
+    },
+    {
+      "resolution": "family",
+      "tips": 10000,
+      "seed": 7003,
+      "seconds": 24.908216750000065,
+      "loadavg": [
+        3.70068359375,
+        7.4580078125,
+        17.548828125
+      ],
+      "gene_edges": 1344893
+    },
+    {
+      "resolution": "ordered",
+      "tips": 100,
+      "seed": 7001,
+      "seconds": 0.020292417000064233,
+      "loadavg": [
+        3.70068359375,
+        7.4580078125,
+        17.548828125
+      ],
+      "gene_edges": 6076
+    },
+    {
+      "resolution": "ordered",
+      "tips": 100,
+      "seed": 7002,
+      "seconds": 0.018006209000077433,
+      "loadavg": [
+        3.70068359375,
+        7.4580078125,
+        17.548828125
+      ],
+      "gene_edges": 5397
+    },
+    {
+      "resolution": "ordered",
+      "tips": 100,
+      "seed": 7003,
+      "seconds": 0.024244834000000992,
+      "loadavg": [
+        3.70068359375,
+        7.4580078125,
+        17.548828125
+      ],
+      "gene_edges": 7482
+    },
+    {
+      "resolution": "ordered",
+      "tips": 300,
+      "seed": 7001,
+      "seconds": 0.11071395799990569,
+      "loadavg": [
+        3.70068359375,
+        7.4580078125,
+        17.548828125
+      ],
+      "gene_edges": 33892
+    },
+    {
+      "resolution": "ordered",
+      "tips": 300,
+      "seed": 7002,
+      "seconds": 0.06704245799983255,
+      "loadavg": [
+        3.70068359375,
+        7.4580078125,
+        17.548828125
+      ],
+      "gene_edges": 19749
+    },
+    {
+      "resolution": "ordered",
+      "tips": 300,
+      "seed": 7003,
+      "seconds": 0.10598274999983914,
+      "loadavg": [
+        3.70068359375,
+        7.4580078125,
+        17.548828125
+      ],
+      "gene_edges": 32628
+    },
+    {
+      "resolution": "ordered",
+      "tips": 1000,
+      "seed": 7001,
+      "seconds": 0.3336854169999697,
+      "loadavg": [
+        3.70068359375,
+        7.4580078125,
+        17.548828125
+      ],
+      "gene_edges": 101584
+    },
+    {
+      "resolution": "ordered",
+      "tips": 1000,
+      "seed": 7002,
+      "seconds": 0.2302764579999348,
+      "loadavg": [
+        3.70068359375,
+        7.4580078125,
+        17.548828125
+      ],
+      "gene_edges": 67110
+    },
+    {
+      "resolution": "ordered",
+      "tips": 1000,
+      "seed": 7003,
+      "seconds": 0.2710474580001119,
+      "loadavg": [
+        3.70068359375,
+        7.4580078125,
+        17.548828125
+      ],
+      "gene_edges": 80615
+    },
+    {
+      "resolution": "ordered",
+      "tips": 3000,
+      "seed": 7001,
+      "seconds": 1.3710858750000625,
+      "loadavg": [
+        3.70068359375,
+        7.4580078125,
+        17.548828125
+      ],
+      "gene_edges": 391003
+    },
+    {
+      "resolution": "ordered",
+      "tips": 3000,
+      "seed": 7002,
+      "seconds": 0.8508776669998497,
+      "loadavg": [
+        3.70068359375,
+        7.4580078125,
+        17.548828125
+      ],
+      "gene_edges": 233602
+    },
+    {
+      "resolution": "ordered",
+      "tips": 3000,
+      "seed": 7003,
+      "seconds": 1.198415040999862,
+      "loadavg": [
+        3.564453125,
+        7.3671875,
+        17.45751953125
+      ],
+      "gene_edges": 344102
+    },
+    {
+      "resolution": "nucleotide",
+      "tips": 100,
+      "seed": 7001,
+      "seconds": 1.3147112919998563,
+      "loadavg": [
+        3.564453125,
+        7.3671875,
+        17.45751953125
+      ],
+      "gene_edges": null
+    },
+    {
+      "resolution": "nucleotide",
+      "tips": 100,
+      "seed": 7002,
+      "seconds": 1.1132192909999503,
+      "loadavg": [
+        3.564453125,
+        7.3671875,
+        17.45751953125
+      ],
+      "gene_edges": null
+    },
+    {
+      "resolution": "nucleotide",
+      "tips": 100,
+      "seed": 7003,
+      "seconds": 1.240107208000154,
+      "loadavg": [
+        3.564453125,
+        7.3671875,
+        17.45751953125
+      ],
+      "gene_edges": null
+    },
+    {
+      "resolution": "nucleotide",
+      "tips": 300,
+      "seed": 7001,
+      "seconds": 3.737824875000115,
+      "loadavg": [
+        3.43896484375,
+        7.27783203125,
+        17.36669921875
+      ],
+      "gene_edges": null
+    },
+    {
+      "resolution": "nucleotide",
+      "tips": 300,
+      "seed": 7002,
+      "seconds": 3.583492166000042,
+      "loadavg": [
+        3.24365234375,
+        7.17333984375,
+        17.2705078125
+      ],
+      "gene_edges": null
+    },
+    {
+      "resolution": "nucleotide",
+      "tips": 300,
+      "seed": 7003,
+      "seconds": 3.5573955419999947,
+      "loadavg": [
+        3.22412109375,
+        7.10400390625,
+        17.1865234375
+      ],
+      "gene_edges": null
+    },
+    {
+      "resolution": "nucleotide",
+      "tips": 1000,
+      "seed": 7001,
+      "seconds": 11.52900916700014,
+      "loadavg": [
+        3.109375,
+        6.95166015625,
+        17.01416015625
+      ],
+      "gene_edges": null
+    },
+    {
+      "resolution": "nucleotide",
+      "tips": 1000,
+      "seed": 7002,
+      "seconds": 11.805311000000074,
+      "loadavg": [
+        3.39990234375,
+        6.88671875,
+        16.873046875
+      ],
+      "gene_edges": null
+    },
+    {
+      "resolution": "nucleotide",
+      "tips": 1000,
+      "seed": 7003,
+      "seconds": 11.86357216700003,
+      "loadavg": [
+        3.5263671875,
+        6.744140625,
+        16.6474609375
+      ],
+      "gene_edges": null
+    },
+    {
+      "resolution": "nucleotide",
+      "tips": 3000,
+      "seed": 7001,
+      "seconds": 34.51739099999986,
+      "loadavg": [
+        3.61669921875,
+        6.40771484375,
+        16.1240234375
+      ],
+      "gene_edges": null
+    },
+    {
+      "resolution": "nucleotide",
+      "tips": 3000,
+      "seed": 7002,
+      "seconds": 34.786529125000015,
+      "loadavg": [
+        3.92822265625,
+        6.17236328125,
+        15.6455078125
+      ],
+      "gene_edges": null
+    },
+    {
+      "resolution": "nucleotide",
+      "tips": 3000,
+      "seed": 7003,
+      "seconds": 36.03700212500007,
+      "loadavg": [
+        3.630859375,
+        5.85107421875,
+        15.14599609375
+      ],
+      "gene_edges": null
+    }
+  ],
+  "summary": [
+    {
+      "resolution": "family",
+      "tips": 100,
+      "median_s": 0.01494720799996685,
+      "min_s": 0.012157249999972919,
+      "max_s": 0.016937874999939595
+    },
+    {
+      "resolution": "family",
+      "tips": 300,
+      "median_s": 0.05598491700015984,
+      "min_s": 0.046014708000029714,
+      "max_s": 0.0628227079998851
+    },
+    {
+      "resolution": "family",
+      "tips": 1000,
+      "median_s": 0.3026869169998463,
+      "min_s": 0.2475763749998805,
+      "max_s": 0.33653595900000255
+    },
+    {
+      "resolution": "family",
+      "tips": 3000,
+      "median_s": 2.408153957999957,
+      "min_s": 2.1239532080001027,
+      "max_s": 2.574429999999893
+    },
+    {
+      "resolution": "family",
+      "tips": 10000,
+      "median_s": 22.439865665999832,
+      "min_s": 17.033319166000183,
+      "max_s": 24.908216750000065
+    },
+    {
+      "resolution": "ordered",
+      "tips": 100,
+      "median_s": 0.020292417000064233,
+      "min_s": 0.018006209000077433,
+      "max_s": 0.024244834000000992
+    },
+    {
+      "resolution": "ordered",
+      "tips": 300,
+      "median_s": 0.10598274999983914,
+      "min_s": 0.06704245799983255,
+      "max_s": 0.11071395799990569
+    },
+    {
+      "resolution": "ordered",
+      "tips": 1000,
+      "median_s": 0.2710474580001119,
+      "min_s": 0.2302764579999348,
+      "max_s": 0.3336854169999697
+    },
+    {
+      "resolution": "ordered",
+      "tips": 3000,
+      "median_s": 1.198415040999862,
+      "min_s": 0.8508776669998497,
+      "max_s": 1.3710858750000625
+    },
+    {
+      "resolution": "nucleotide",
+      "tips": 100,
+      "median_s": 1.240107208000154,
+      "min_s": 1.1132192909999503,
+      "max_s": 1.3147112919998563
+    },
+    {
+      "resolution": "nucleotide",
+      "tips": 300,
+      "median_s": 3.583492166000042,
+      "min_s": 3.5573955419999947,
+      "max_s": 3.737824875000115
+    },
+    {
+      "resolution": "nucleotide",
+      "tips": 1000,
+      "median_s": 11.805311000000074,
+      "min_s": 11.52900916700014,
+      "max_s": 11.86357216700003
+    },
+    {
+      "resolution": "nucleotide",
+      "tips": 3000,
+      "median_s": 34.786529125000015,
+      "min_s": 34.51739099999986,
+      "max_s": 36.03700212500007
+    }
+  ],
+  "endpoint": "simulate_genomes return; gene-tree reconstruction and writing excluded",
+  "nucleotide_input": "synthetic circular genome: 4411532 nt, 4000 genes of 1000 nt"
+}

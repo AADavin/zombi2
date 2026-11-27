@@ -1,9 +1,17 @@
 # Performance results
 
-The raw timing records behind the README's performance figure and the docs site's
-[Performance page](https://aadavin.github.io/ZOMBI2/docs/performance/): one JSON file per benchmark,
-holding the raw per-repeat times point by point, with a provenance header (library version,
-interpreter, NumPy, platform, timestamp) embedded in each file.
+The current README and documentation figure uses the **27 November 2026 ZOMBI2 0.64.2 study**
+in [`v0.64.2/`](v0.64.2/). It includes species-tree scaling, genome scaling at three resolutions,
+and the shared complete-gene-tree comparison with AsymmeTree 2.3.1. Each dataset includes raw
+repeats and provenance. Timing protocols and qualifications are documented on the
+[performance page](https://aadavin.github.io/ZOMBI2/docs/performance/).
+
+Regenerate the current figure with `python figures/scripts/fig_performance.py`.
+
+## Historical August 2026 records
+
+The files below are retained from the earlier study. They are not the source of the current
+performance figure or its AsymmeTree comparison.
 
 Measured on 2026-08-16, on ZOMBI2 main at commit `fcfe57f` (CPython 3.12.2, NumPy 1.26.4), on
 macOS / Apple Silicon (10 cores), each benchmark run serially on an otherwise idle machine.
